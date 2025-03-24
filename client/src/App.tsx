@@ -44,17 +44,29 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
                        isPublicProfileRoute ? profileMatch![1] : null;
   const isOwnRoute = isAuthenticated && routeUsername === currentUser?.username;
   
+  // Check if this is the settings page (special case) 
+  // Settings and Profile pages are accessible even for unverified users
+  const isSettingsPage = isUserFeatureRoute && routeMatch[2] === 'settings';
+  const isProfilePage = isPublicProfileRoute;
+  
   useEffect(() => {
+    // Extract the feature if we're on a user feature route
+    const featurePath = isUserFeatureRoute ? routeMatch[2] : null;
+    
+    // Special handling for settings page - always allow access if authenticated
+    const isSettingsAccess = featurePath === 'settings';
+    
     // Redirect to login if:
     // 1. User is not authenticated and tries to access a protected route, or
     // 2. User tries to access a user-specific route (/username/...) while not authenticated, or
-    // 3. User tries to access someone else's routes
+    // 3. User tries to access someone else's routes (except settings)
     if ((!isAuthenticated && !isPublicRoute) || 
         (isUserFeatureRoute && !isAuthenticated) ||
-        (isUserFeatureRoute && isAuthenticated && !isOwnRoute)) {
+        (isUserFeatureRoute && isAuthenticated && !isOwnRoute && !isSettingsAccess)) {
+      console.log('Redirecting to login because: path requires authentication');
       setLocation("/login");
     }
-  }, [isAuthenticated, location, isPublicRoute, isUserFeatureRoute, isOwnRoute, setLocation]);
+  }, [isAuthenticated, location, isPublicRoute, isUserFeatureRoute, isOwnRoute, routeMatch, setLocation]);
 
   if (isAuthenticated) {
     const username = currentUser?.username;
