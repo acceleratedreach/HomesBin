@@ -39,48 +39,22 @@ export default function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsSubmitting(true);
-      const response = await apiRequest('POST', '/api/auth/login', values);
+      // Send login request to API
+      await apiRequest('POST', '/api/auth/login', values);
+      
+      // Invalidate auth queries to refresh data
       await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/user'] });
       
-      // Redirect to user-specific dashboard
-      if (response && typeof response === 'object' && 'user' in response && 
-          response.user && typeof response.user === 'object' && 
-          'username' in response.user && response.user.username) {
-        console.log('Login successful, redirecting to:', `/${response.user.username}/dashboard`);
-        setLocation(`/${response.user.username}/dashboard`);
-      } else {
-        // Fallback - query for session data directly
-        try {
-          const sessionData = await queryClient.fetchQuery({ 
-            queryKey: ['/api/auth/session']
-          });
-          
-          if (sessionData && typeof sessionData === 'object' && 'user' in sessionData && 
-              sessionData.user && typeof sessionData.user === 'object' && 
-              'username' in sessionData.user && sessionData.user.username) {
-            console.log('Login successful (from session), redirecting to:', `/${sessionData.user.username}/dashboard`);
-            setLocation(`/${sessionData.user.username}/dashboard`);
-          } else {
-            console.error('Login issue: Session data missing username', sessionData);
-            toast({
-              title: "Login issue",
-              description: "Logged in successfully but couldn't determine username.",
-              variant: "destructive",
-            });
-          }
-        } catch (sessionError) {
-          console.error('Error fetching session after login:', sessionError);
-          toast({
-            title: "Login issue",
-            description: "Logged in but couldn't retrieve your account details.",
-            variant: "destructive",
-          });
-        }
-      }
+      console.log('Login successful, redirecting to dashboard');
       
+      // Redirect to the dashboard
+      setLocation('/dashboard');
+      
+      // Display success message
       toast({
         title: "Login successful",
-        description: "Welcome back to HomesBin!",
+        description: "Welcome back to HomesBin!"
       });
     } catch (error: any) {
       toast({

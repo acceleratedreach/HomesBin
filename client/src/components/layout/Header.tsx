@@ -22,8 +22,18 @@ export default function Header({ isAuthenticated }: HeaderProps) {
   const handleLogout = async () => {
     try {
       await apiRequest('POST', '/api/auth/logout', {});
+      
+      // Clear all auth-related queries from cache
       queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/listings'] });
+      
+      // Force a reset of the session data
+      queryClient.setQueryData(['/api/auth/session'], null);
+      
+      // Redirect to login page
       setLocation('/login');
+      
       toast({
         title: "Logged out successfully",
         description: "You have been logged out of your account",

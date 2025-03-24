@@ -4,19 +4,30 @@ import { useLocation } from "wouter";
 import Header from "@/components/layout/Header";
 import LoginForm from "@/components/auth/LoginForm";
 
+interface UserData {
+  id: number;
+  username: string;
+  email: string;
+  emailVerified?: boolean;
+}
+
+interface SessionData {
+  user: UserData;
+}
+
 export default function Login() {
   const [, setLocation] = useLocation();
   
-  const { data: userSession, isLoading } = useQuery({
+  const { data: sessionData, isLoading } = useQuery<SessionData>({
     queryKey: ['/api/auth/session'],
   });
   
-  // Redirect to user-specific dashboard if already logged in
+  // Redirect to dashboard if already logged in
   useEffect(() => {
-    if (!isLoading && userSession?.user?.username) {
-      setLocation(`/${userSession.user.username}/dashboard`);
+    if (!isLoading && sessionData?.user) {
+      setLocation('/dashboard');
     }
-  }, [userSession, isLoading, setLocation]);
+  }, [sessionData, isLoading, setLocation]);
   
   if (isLoading) {
     return (

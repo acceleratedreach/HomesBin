@@ -78,10 +78,10 @@ export default function Profile({ username }: ProfileProps = {}) {
   
   return (
     <div className="min-h-screen flex flex-col">
-      <Header isAuthenticated={!!userSession?.user} />
+      <Header isAuthenticated={!!sessionData?.user} />
       
       <div className="flex-grow flex">
-        {showSidebar && <Sidebar />}
+        {/* No sidebar on profile page */}
         
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 md:px-8">
