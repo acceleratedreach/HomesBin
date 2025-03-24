@@ -32,7 +32,7 @@ interface SessionData {
   };
 }
 
-function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated: boolean, currentUser: any }) {
+function AuthenticatedRoutes({ isAuthenticated, currentUser, isLoading = false }: { isAuthenticated: boolean, currentUser: any, isLoading?: boolean }) {
   const [location, setLocation] = useLocation();
 
   // Define array of public routes that don't require authentication
@@ -52,19 +52,52 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
   // If it's a user feature route, extract the username to check ownership
   const routeUsername = isUserFeatureRoute ? routeMatch[1] : 
                        isPublicProfileRoute ? profileMatch![1] : null;
-  const isOwnRoute = isAuthenticated && routeUsername === currentUser?.username;
+  
+  // For debugging route ownership                     
+  console.log('Auth route debug:', {
+    currentUser: currentUser ? 
+      `${currentUser.username} (${currentUser.id})` : 'undefined',
+    routeUsername,
+    isAuthenticated,
+    isUserFeatureRoute,
+    location
+  });
+  
+  const isOwnRoute = isAuthenticated && 
+                     routeUsername !== null && 
+                     currentUser && 
+                     'username' in currentUser && 
+                     typeof currentUser.username === 'string' &&
+                     routeUsername === currentUser.username;
   
   // Check if this is the settings page or profile page (special cases) 
   const isSettingsPage = isUserFeatureRoute && routeMatch?.[2] === 'settings';
   const isProfilePage = isPublicProfileRoute;
   
   useEffect(() => {
+    // Don't do anything if loading is still in progress or we're already on login page
+    if (isLoading || location === '/login') return;
+  
     // Extract the feature if we're on a user feature route
     const featurePath = isUserFeatureRoute ? routeMatch[2] : null;
     
     // Special handling for settings page and public profiles
     const isSettingsAccess = featurePath === 'settings';
     const isViewingPublicProfile = isPublicProfileRoute && !isUserFeatureRoute;
+    
+    // If authenticated and at root, go to user dashboard
+    if (isAuthenticated && location === '/' && currentUser && currentUser.username) {
+      console.log('Redirecting to user dashboard from root');
+      setLocation(`/${currentUser.username}/dashboard`);
+      return;
+    }
+    
+    // If authenticated and at /dashboard, go to user dashboard
+    if (isAuthenticated && location === '/dashboard' && currentUser && currentUser.username) {
+      console.log('Redirecting to user dashboard from /dashboard');
+      setLocation(`/${currentUser.username}/dashboard`);
+      return;
+    }
     
     // Determine if user is trying to access someone else's dashboard
     const isAccessingOtherUserDashboard = isUserFeatureRoute && 
@@ -74,21 +107,103 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
     
     // Allow settings access if authenticated, regardless of email verification
     const canAccessSettings = isSettingsAccess && isAuthenticated && isOwnRoute;
+
+    // Debug access conditions
+    console.log('Access control debug:', {
+      isAuthenticated,
+      isPublicRoute,
+      isUserFeatureRoute,
+      isOwnRoute,
+      isViewingPublicProfile,
+      isAccessingOtherUserDashboard,
+      canAccessSettings
+    });
     
-    // Redirect to login if:
-    // 1. User is not authenticated and tries to access a protected route (except settings), or
-    // 2. User tries to access a user-specific feature route (/username/...) while not authenticated (except public profiles), or
-    // 3. User tries to access someone else's dashboard routes (except public profiles)
-    if ((!isAuthenticated && !isPublicRoute && !canAccessSettings) || 
-        (isUserFeatureRoute && !isAuthenticated && !canAccessSettings) ||
-        isAccessingOtherUserDashboard) {
-      console.log('Redirecting to login because: path requires authentication');
-      setLocation("/login");
+    // Special case: If we're authenticated and accessing route that matches username, no redirect
+    if (isAuthenticated && isUserFeatureRoute && 
+        currentUser && currentUser.username && routeUsername === currentUser.username) {
+      console.log('Accessing own route, no redirect needed');
+      return;
     }
-  }, [isAuthenticated, location, isPublicRoute, isUserFeatureRoute, isOwnRoute, routeMatch, setLocation]);
+    
+    // Now handle redirects to login:
+    
+    // 1. User is not authenticated and tries to access a protected route (except settings)
+    if (!isAuthenticated && !isPublicRoute && !canAccessSettings) {
+      console.log('Redirecting to login: not authenticated for protected route');
+      setLocation("/login");
+      return;
+    }
+    
+    // 2. User tries to access a user-specific feature route (/username/...) while not authenticated
+    if (isUserFeatureRoute && !isAuthenticated && !canAccessSettings) {
+      console.log('Redirecting to login: not authenticated for user feature route');
+      setLocation("/login");
+      return;
+    }
+    
+    // 3. User tries to access someone else's dashboard routes (except public profiles)
+    if (isAccessingOtherUserDashboard) {
+      console.log('Redirecting to login: accessing another user\'s dashboard');
+      setLocation("/login");
+      return;
+    }
+  }, [isAuthenticated, location, isPublicRoute, isUserFeatureRoute, isOwnRoute, routeMatch, setLocation, isLoading, currentUser]);
 
   if (isAuthenticated) {
     const username = currentUser?.username;
+    
+    // If we're already at a user feature route, don't apply redirects
+    if (isUserFeatureRoute && routeUsername === username) {
+      console.log('Already at the correct user route:', location);
+      
+      return (
+        <Switch>
+          {/* User-specific feature routes */}
+          <Route path="/:username/dashboard">
+            {(params) => <Dashboard username={params.username} />}
+          </Route>
+          
+          <Route path="/:username/settings">
+            {(params) => <Settings />}
+          </Route>
+          
+          <Route path="/:username/listings/new">
+            {(params) => <ListingCreate />}
+          </Route>
+          
+          <Route path="/:username/listings/:id/edit">
+            {(params) => <ListingEdit id={Number(params.id)} />}
+          </Route>
+          
+          <Route path="/:username/listings">
+            {(params) => <Listings />}
+          </Route>
+          
+          <Route path="/:username/email-marketing">
+            {(params) => <EmailMarketing />}
+          </Route>
+          
+          <Route path="/:username/social-content">
+            {(params) => <SocialContent />}
+          </Route>
+          
+          <Route path="/:username/listing-graphics">
+            {(params) => <ListingGraphics />}
+          </Route>
+          
+          <Route path="/:username/lot-maps">
+            {(params) => <LotMaps />}
+          </Route>
+          
+          <Route path="/:username/theme">
+            {(params) => <ThemePage />}
+          </Route>
+          
+          <Route component={NotFound} />
+        </Switch>
+      );
+    }
     
     return (
       <Switch>
@@ -97,10 +212,10 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
           {() => {
             if (username) {
               setLocation(`/${username}/dashboard`);
+              return <div className="p-4">Redirecting to dashboard...</div>;
             } else {
               return <NotFound />;
             }
-            return null;
           }}
         </Route>
         
@@ -109,10 +224,10 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
           {() => {
             if (username) {
               setLocation(`/${username}/dashboard`);
+              return <div className="p-4">Redirecting to dashboard...</div>;
             } else {
               return <NotFound />;
             }
-            return null;
           }}
         </Route>
         
@@ -259,7 +374,8 @@ function App() {
         </div>
       ) : (
         <AuthenticatedRoutes 
-          isAuthenticated={isAuthenticated} 
+          isAuthenticated={isAuthenticated}
+          isLoading={isLoading}
           currentUser={userData || (sessionData?.user as any)} 
         />
       )}
