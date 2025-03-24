@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 export default function Header({ isAuthenticated }: HeaderProps) {
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
 
   const { data: userData } = useQuery({
@@ -21,19 +21,28 @@ export default function Header({ isAuthenticated }: HeaderProps) {
 
   const handleLogout = async () => {
     try {
-      await apiRequest('POST', '/api/auth/logout', {});
-      // Force complete invalidation of all queries to ensure fresh state
-      await queryClient.invalidateQueries();
-      // Set a flag to ensure we know we just logged out
+      // First set the flag that we're logging out (before API call)
       sessionStorage.setItem('just_logged_out', 'true');
-      // Then redirect
-      setLocation('/login');
+      
+      // Execute the logout API call
+      await apiRequest('POST', '/api/auth/logout', {});
+      
+      // After successful logout, clear all query cache to force fresh state
+      queryClient.clear();
+      
+      // Show success message
       toast({
         title: "Logged out successfully",
         description: "You have been logged out of your account",
       });
+      
+      // Then redirect to login page
+      setLocation('/login');
     } catch (error) {
       console.error('Logout error:', error);
+      // Clear the flag if logout failed
+      sessionStorage.removeItem('just_logged_out');
+      
       toast({
         title: "Error",
         description: "Failed to log out. Please try again.",

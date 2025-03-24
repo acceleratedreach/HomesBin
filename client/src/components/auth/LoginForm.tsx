@@ -25,7 +25,7 @@ const formSchema = z.object({
 
 export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -40,77 +40,54 @@ export default function LoginForm() {
     try {
       setIsSubmitting(true);
       
-      // Clear any existing session data to avoid stale states
-      await queryClient.resetQueries();
-      
+      // Execute login API call
       const response = await apiRequest('POST', '/api/auth/login', values);
       
-      // Immediately refetch session data
-      await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
+      // Get username from response
+      let username = response?.user?.username;
       
-      let username = '';
-      
-      // Try to get username from response
-      if (response && typeof response === 'object' && 'user' in response && 
-          response.user && typeof response.user === 'object' && 
-          'username' in response.user && response.user.username) {
-        username = response.user.username;
-      } 
-      
-      // If we have a username, redirect
-      if (username) {
-        console.log('Login successful, redirecting to:', `/${username}/dashboard`);
-        toast({
-          title: "Login successful",
-          description: "Welcome back to HomesBin!",
-        });
-        
-        // Need a slight delay to make sure session is properly recognized
-        setTimeout(() => {
-          setLocation(`/${username}/dashboard`);
-        }, 100);
-      } else {
-        // Fallback - query for session data directly
+      // If login was successful but we don't have username in response
+      if (!username) {
+        // Fetch session data to get username
         try {
           const sessionData = await queryClient.fetchQuery({ 
             queryKey: ['/api/auth/session']
           });
           
-          if (sessionData && typeof sessionData === 'object' && 'user' in sessionData && 
-              sessionData.user && typeof sessionData.user === 'object' && 
-              'username' in sessionData.user && sessionData.user.username) {
-            
+          if (sessionData?.user?.username) {
             username = sessionData.user.username;
-            console.log('Login successful (from session), redirecting to:', `/${username}/dashboard`);
-            
-            toast({
-              title: "Login successful",
-              description: "Welcome back to HomesBin!",
-            });
-            
-            // Need a slight delay to make sure session is properly recognized
-            setTimeout(() => {
-              setLocation(`/${username}/dashboard`);
-            }, 100);
-          } else {
-            console.error('Login issue: Session data missing username', sessionData);
-            toast({
-              title: "Login issue",
-              description: "Logged in successfully but couldn't determine username.",
-              variant: "destructive",
-            });
           }
         } catch (sessionError) {
           console.error('Error fetching session after login:', sessionError);
-          toast({
-            title: "Login issue",
-            description: "Logged in but couldn't retrieve your account details.",
-            variant: "destructive",
-          });
         }
       }
+      
+      // Clear any "just logged out" flag if it exists
+      sessionStorage.removeItem('just_logged_out');
+      
+      // Show success toast
+      toast({
+        title: "Login successful",
+        description: "Welcome back to HomesBin!",
+      });
+      
+      // Redirect to dashboard with username
+      if (username) {
+        console.log('Login successful, redirecting to:', `/${username}/dashboard`);
+        // Use timeout to ensure UI has time to update before redirect
+        setTimeout(() => {
+          setLocation(`/${username}/dashboard`);
+        }, 200);
+      } else {
+        // Fallback if no username was found
+        console.error('Login issue: Could not determine username after login');
+        toast({
+          title: "Login issue",
+          description: "Logged in but couldn't retrieve your username. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (error: any) {
-      console.error('Login error:', error);
       toast({
         title: "Login failed",
         description: error.message || "Invalid username or password. Please try again.",

@@ -37,7 +37,6 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser, isLoading = false }
 
   // Define array of public routes that don't require authentication
   const publicRoutes = ["/", "/login", "/register", "/verify-email", "/reset-password", "/forgot-password"];
-  // Make sure /dashboard is not treated as a valid route
   
   // Public profile routes are allowed without auth
   const profileMatch = location.match(/^\/([^\/]+)$/); // Matches /username (profiles)
@@ -52,52 +51,31 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser, isLoading = false }
   // If it's a user feature route, extract the username to check ownership
   const routeUsername = isUserFeatureRoute ? routeMatch[1] : 
                        isPublicProfileRoute ? profileMatch![1] : null;
-  
-  // For debugging route ownership                     
-  console.log('Auth route debug:', {
-    currentUser: currentUser ? 
-      `${currentUser.username} (${currentUser.id})` : 'undefined',
-    routeUsername,
-    isAuthenticated,
-    isUserFeatureRoute,
-    location
-  });
-  
-  const isOwnRoute = isAuthenticated && 
-                     routeUsername !== null && 
-                     currentUser && 
-                     'username' in currentUser && 
-                     typeof currentUser.username === 'string' &&
-                     routeUsername === currentUser.username;
+  const isOwnRoute = isAuthenticated && routeUsername === currentUser?.username;
   
   // Check if this is the settings page or profile page (special cases) 
   const isSettingsPage = isUserFeatureRoute && routeMatch?.[2] === 'settings';
   const isProfilePage = isPublicProfileRoute;
   
   useEffect(() => {
-    // Don't do anything if loading is still in progress or we're already on login page
-    if (isLoading || location === '/login') return;
-  
+    // Don't run redirects if still loading or if we're already on a public page
+    if (isLoading || (isPublicRoute && !isUserFeatureRoute)) {
+      return;
+    }
+    
+    // Handle special case: user is logged in but accessing /dashboard instead of /:username/dashboard
+    if (isAuthenticated && location === '/dashboard' && currentUser?.username) {
+      console.log('Redirecting to user-specific dashboard');
+      setLocation(`/${currentUser.username}/dashboard`);
+      return;
+    }
+    
     // Extract the feature if we're on a user feature route
     const featurePath = isUserFeatureRoute ? routeMatch[2] : null;
     
     // Special handling for settings page and public profiles
     const isSettingsAccess = featurePath === 'settings';
     const isViewingPublicProfile = isPublicProfileRoute && !isUserFeatureRoute;
-    
-    // If authenticated and at root, go to user dashboard
-    if (isAuthenticated && location === '/' && currentUser && currentUser.username) {
-      console.log('Redirecting to user dashboard from root');
-      setLocation(`/${currentUser.username}/dashboard`);
-      return;
-    }
-    
-    // If authenticated and at /dashboard, go to user dashboard
-    if (isAuthenticated && location === '/dashboard' && currentUser && currentUser.username) {
-      console.log('Redirecting to user dashboard from /dashboard');
-      setLocation(`/${currentUser.username}/dashboard`);
-      return;
-    }
     
     // Determine if user is trying to access someone else's dashboard
     const isAccessingOtherUserDashboard = isUserFeatureRoute && 
@@ -107,17 +85,6 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser, isLoading = false }
     
     // Allow settings access if authenticated, regardless of email verification
     const canAccessSettings = isSettingsAccess && isAuthenticated && isOwnRoute;
-
-    // Debug access conditions
-    console.log('Access control debug:', {
-      isAuthenticated,
-      isPublicRoute,
-      isUserFeatureRoute,
-      isOwnRoute,
-      isViewingPublicProfile,
-      isAccessingOtherUserDashboard,
-      canAccessSettings
-    });
     
     // Special case: If we're authenticated and accessing route that matches username, no redirect
     if (isAuthenticated && isUserFeatureRoute && 
@@ -349,31 +316,37 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser, isLoading = false }
 }
 
 function App() {
+  // Use a state to track whether we've just logged out
+  const [justLoggedOut, setJustLoggedOut] = useState<boolean>(false);
+  
   // Check for a "force refresh" flag that might be set by logout
   useEffect(() => {
-    const justLoggedOut = sessionStorage.getItem('just_logged_out') === 'true';
-    if (justLoggedOut) {
-      // If we've just logged out, reset all queries to force refetching
-      queryClient.resetQueries();
-      // Clear the flag so we don't keep resetting
-      sessionStorage.removeItem('just_logged_out');
+    const loggedOutFlag = sessionStorage.getItem('just_logged_out') === 'true';
+    if (loggedOutFlag) {
+      setJustLoggedOut(true);
+      // Reset query client before changing flag state
+      queryClient.clear();
+    } else {
+      setJustLoggedOut(false);
     }
   }, []);
   
   const { data: sessionData, isLoading: sessionLoading } = useQuery<SessionData>({ 
     queryKey: ['/api/auth/session'],
-    retry: false,
+    retry: justLoggedOut ? 0 : 3,
     staleTime: 1000 * 30, // 30 seconds - reduced to catch auth changes faster
-    refetchOnWindowFocus: true
+    refetchOnWindowFocus: true,
+    enabled: !justLoggedOut, // Don't run the query if we just logged out
   });
   
-  const isAuthenticated = sessionData && 
+  const isAuthenticated = !justLoggedOut && sessionData && 
     typeof sessionData === 'object' && 
     'user' in sessionData && 
     sessionData.user ? true : false;
     
   // For debugging authentication state
   console.log('Auth status:', isAuthenticated, 
+    justLoggedOut ? 'Just logged out' : 
     sessionData ? 'Session data exists' : 'No session data');
   
   const { data: userData, isLoading: userLoading } = useQuery({
