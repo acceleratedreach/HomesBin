@@ -1,4 +1,3 @@
-import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
@@ -7,9 +6,13 @@ import ListingForm from "@/components/listings/ListingForm";
 import ListingDetails from "@/components/listings/ListingDetails";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export default function ListingEdit() {
-  const { id } = useParams();
-  const listingId = parseInt(id);
+interface ListingEditProps {
+  id?: number;
+}
+
+export default function ListingEdit({ id }: ListingEditProps) {
+  // Use the id passed as a prop
+  const listingId = id || 0;
   
   const { data: userSession } = useQuery({
     queryKey: ['/api/auth/session'],

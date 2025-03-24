@@ -21,18 +21,14 @@ import ThemePage from "@/pages/ThemePage";
 import { useQuery } from "@tanstack/react-query";
 
 // Custom routing component for user profile pages
-function UserProfileRoute() {
-  const params = useParams();
-  const username = params.username;
-  
+function UserProfileRoute(props: any) {
+  const username = props.params?.username;
   return <Profile username={username} />;
 }
 
 // Custom routing component for user dashboard pages
-function UserDashboardRoute() {
-  const params = useParams();
-  const username = params.username;
-  
+function UserDashboardRoute(props: any) {
+  const username = props.params?.username;
   return <Dashboard username={username} />;
 }
 
@@ -50,21 +46,47 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
     
     return (
       <Switch>
-        <Route path="/dashboard" component={Dashboard} />
-        <Route path="/settings" component={Settings} />
-        <Route path="/profile" component={Profile} />
-        <Route path="/listings" component={Listings} />
-        <Route path="/listings/new" component={ListingCreate} />
-        <Route path="/listings/:id/edit" component={ListingEdit} />
-        <Route path="/email-marketing" component={EmailMarketing} />
-        <Route path="/social-content" component={SocialContent} />
-        <Route path="/listing-graphics" component={ListingGraphics} />
-        <Route path="/lot-maps" component={LotMaps} />
-        <Route path="/theme" component={ThemePage} />
+        <Route path="/dashboard">
+          {() => <Dashboard />}
+        </Route>
+        <Route path="/settings">
+          {() => <Settings />}
+        </Route>
+        <Route path="/profile">
+          {() => <Profile />}
+        </Route>
+        <Route path="/listings">
+          {() => <Listings />}
+        </Route>
+        <Route path="/listings/new">
+          {() => <ListingCreate />}
+        </Route>
+        <Route path="/listings/:id/edit">
+          {(params) => <ListingEdit id={Number(params.id)} />}
+        </Route>
+        <Route path="/email-marketing">
+          {() => <EmailMarketing />}
+        </Route>
+        <Route path="/social-content">
+          {() => <SocialContent />}
+        </Route>
+        <Route path="/listing-graphics">
+          {() => <ListingGraphics />}
+        </Route>
+        <Route path="/lot-maps">
+          {() => <LotMaps />}
+        </Route>
+        <Route path="/theme">
+          {() => <ThemePage />}
+        </Route>
         
         {/* Custom user profile routes */}
-        <Route path="/:username/dashboard" component={UserDashboardRoute} />
-        <Route path="/:username" component={UserProfileRoute} />
+        <Route path="/:username/dashboard">
+          {(params) => <Dashboard username={params.username} />}
+        </Route>
+        <Route path="/:username">
+          {(params) => <Profile username={params.username} />}
+        </Route>
         
         {/* Redirect root to the user's dashboard if logged in */}
         <Route path="/">
@@ -86,14 +108,24 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
 
   return (
     <Switch>
-      <Route path="/login" component={Login} />
-      <Route path="/register" component={Register} />
+      <Route path="/login">
+        {() => <Login />}
+      </Route>
+      <Route path="/register">
+        {() => <Register />}
+      </Route>
       
       {/* Public profile routes for non-authenticated users */}
-      <Route path="/:username" component={UserProfileRoute} />
+      <Route path="/:username">
+        {(params) => <Profile username={params.username} />}
+      </Route>
       
-      <Route path="/" component={LandingPage} />
-      <Route component={Login} />
+      <Route path="/">
+        {() => <LandingPage />}
+      </Route>
+      <Route>
+        {() => <Login />}
+      </Route>
     </Switch>
   );
 }

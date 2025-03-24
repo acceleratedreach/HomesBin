@@ -248,7 +248,7 @@ export default function ThemePage() {
                             <div className="h-3 rounded bg-gray-600 mb-2"></div>
                             <div className="h-3 rounded bg-gray-600 mb-2 w-2/3"></div>
                             <div className="h-3 rounded bg-gray-600 w-1/2"></div>
-                            <div className="h-5 w-12 rounded" style={{ backgroundColor: selectedColor }} className="mt-3"></div>
+                            <div className="h-5 w-12 rounded mt-3" style={{ backgroundColor: selectedColor }}></div>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
