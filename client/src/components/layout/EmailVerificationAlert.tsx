@@ -61,6 +61,9 @@ export default function EmailVerificationAlert() {
         <div>
           Your email address ({userData.email}) is not verified. 
           Some features will be limited until you verify your email.
+          <div className="mt-1 text-sm opacity-90">
+            When you click the verification link, look for a plain-text URL if the button shows as "Not Safe".
+          </div>
         </div>
         <div className="flex items-center space-x-2">
           <Button 

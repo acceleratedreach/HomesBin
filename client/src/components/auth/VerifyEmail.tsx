@@ -104,16 +104,42 @@ export default function VerifyEmail() {
               <p className="text-sm text-gray-500">
                 Please request a new verification email from your settings page.
               </p>
+              <div className="mt-2 text-sm text-gray-500 max-w-md">
+                <p className="font-medium">Troubleshooting Tips:</p>
+                <ul className="list-disc ml-5 mt-1 space-y-1">
+                  <li>Make sure you're using the most recent verification link</li>
+                  <li>If the verification button shows as "Not Safe", try copying the plain-text URL from the email instead</li>
+                  <li>Check if your email client modified the verification link</li>
+                </ul>
+              </div>
             </div>
           )}
         </CardContent>
-        <CardFooter className="flex justify-center">
+        <CardFooter className="flex justify-center gap-3">
           <Button 
             onClick={() => navigate('/')}
-            variant="default"
+            variant="outline"
           >
             Back to Home
           </Button>
+          
+          {status === 'success' && (
+            <Button 
+              onClick={() => navigate('/settings')}
+              variant="default"
+            >
+              Go to Settings
+            </Button>
+          )}
+          
+          {status === 'error' && (
+            <Button 
+              onClick={() => navigate('/settings')}
+              variant="default"
+            >
+              Go to Settings
+            </Button>
+          )}
         </CardFooter>
       </Card>
     </div>
