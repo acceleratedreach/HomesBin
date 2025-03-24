@@ -43,7 +43,7 @@ export default function Sidebar({ className }: SidebarProps) {
   ];
 
   return (
-    <aside className={cn("hidden md:flex flex-col w-64 border-r border-gray-200 bg-white", className)}>
+    <aside className={cn("flex-col w-64 border-r border-gray-200 bg-white hidden md:flex", className)}>
       <div className="p-5 border-b border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900">Agent Dashboard</h2>
         <p className="text-sm text-gray-500">@{username}</p>

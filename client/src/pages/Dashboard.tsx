@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
@@ -15,12 +15,21 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ username }: DashboardProps = {}) {
+  const [location, setLocation] = useLocation();
+  
   const { data: userSession } = useQuery<{ user: { username: string } }>({
     queryKey: ['/api/auth/session'],
   });
 
+  const { data: currentUser } = useQuery({
+    queryKey: ['/api/user'],
+  });
+  
+  // If no username provided, use the current user's username
+  const dashboardUsername = username || currentUser?.username;
+  
   // Ensure we're on the correct user's dashboard
-  const isOwnDashboard = userSession?.user && userSession.user.username === username;
+  const isOwnDashboard = userSession?.user && userSession.user.username === dashboardUsername;
 
   if (!isOwnDashboard) {
     return null; // This will be handled by the router's authentication logic
@@ -45,7 +54,7 @@ export default function Dashboard({ username }: DashboardProps = {}) {
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold">Dashboard</h1>
               <Button asChild>
-                <Link href={`/${username}/listings/new`}>
+                <Link href={`/${dashboardUsername}/listings/new`}>
                   <Plus className="h-4 w-4 mr-2" /> Add New Listing
                 </Link>
               </Button>
@@ -76,7 +85,7 @@ export default function Dashboard({ username }: DashboardProps = {}) {
                               {listings.length - 3} more listings
                             </p>
                             <Button asChild variant="outline">
-                              <Link href={`/${username}/listings`}>View All Listings</Link>
+                              <Link href={`/${dashboardUsername}/listings`}>View All Listings</Link>
                             </Button>
                           </CardContent>
                         </Card>
@@ -91,7 +100,7 @@ export default function Dashboard({ username }: DashboardProps = {}) {
                           Create your first property listing to get started
                         </p>
                         <Button asChild>
-                          <Link href={`/${username}/listings/new`}>
+                          <Link href={`/${dashboardUsername}/listings/new`}>
                             <Plus className="h-4 w-4 mr-2" /> Create Listing
                           </Link>
                         </Button>
@@ -114,7 +123,7 @@ export default function Dashboard({ username }: DashboardProps = {}) {
                           Leads will appear here when people show interest in your listings
                         </p>
                         <Button asChild variant="outline">
-                          <Link href="/email-marketing">
+                          <Link href={`/${dashboardUsername}/email-marketing`}>
                             <Mail className="h-4 w-4 mr-2" /> Set Up Email Campaign
                           </Link>
                         </Button>
@@ -167,25 +176,25 @@ export default function Dashboard({ username }: DashboardProps = {}) {
                 <CardContent>
                   <div className="space-y-3">
                     <Button asChild variant="outline" className="w-full justify-start">
-                      <Link href="/listings/new">
+                      <Link href={`/${dashboardUsername}/listings/new`}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add New Listing
                       </Link>
                     </Button>
                     <Button asChild variant="outline" className="w-full justify-start">
-                      <Link href="/email-marketing">
+                      <Link href={`/${dashboardUsername}/email-marketing`}>
                         <Mail className="mr-2 h-4 w-4" />
                         Create Email Campaign
                       </Link>
                     </Button>
                     <Button asChild variant="outline" className="w-full justify-start">
-                      <Link href="/listing-graphics">
+                      <Link href={`/${dashboardUsername}/listing-graphics`}>
                         <Building className="mr-2 h-4 w-4" />
                         Generate Listing Graphics
                       </Link>
                     </Button>
                     <Button asChild variant="outline" className="w-full justify-start">
-                      <Link href="/profile">
+                      <Link href={`/${dashboardUsername}`}>
                         <UserPlus className="mr-2 h-4 w-4" />
                         Complete Profile
                       </Link>
