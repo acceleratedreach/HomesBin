@@ -26,7 +26,19 @@ export default function Sidebar({ className }: SidebarProps) {
   
   const username = userData?.username || "";
 
-  const navItems = [
+  // Generate links based on username for the custom URL structure
+  const navItems = username ? [
+    { href: `/${username}/dashboard`, label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5 mr-3 text-gray-500" /> },
+    { href: `/${username}`, label: "Profile", icon: <User className="h-5 w-5 mr-3 text-gray-500" /> },
+    { href: `/${username}/listings`, label: "Listings", icon: <FileText className="h-5 w-5 mr-3 text-gray-500" /> },
+    { href: `/${username}/theme`, label: "Theme", icon: <Palette className="h-5 w-5 mr-3 text-gray-500" /> },
+    { href: `/${username}/email-marketing`, label: "Email Marketing", icon: <Mail className="h-5 w-5 mr-3 text-gray-500" /> },
+    { href: `/${username}/social-content`, label: "Social Content", icon: <MessageSquare className="h-5 w-5 mr-3 text-gray-500" /> },
+    { href: `/${username}/listing-graphics`, label: "Listing Graphics", icon: <Image className="h-5 w-5 mr-3 text-gray-500" /> },
+    { href: `/${username}/lot-maps`, label: "Lot Maps", icon: <Map className="h-5 w-5 mr-3 text-gray-500" /> },
+    { href: `/${username}/settings`, label: "Settings", icon: <Settings className="h-5 w-5 mr-3 text-gray-500" /> },
+  ] : [
+    // Fallback if no username is available
     { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5 mr-3 text-gray-500" /> },
     { href: "/profile", label: "Profile", icon: <User className="h-5 w-5 mr-3 text-gray-500" /> },
     { href: "/listings", label: "Listings", icon: <FileText className="h-5 w-5 mr-3 text-gray-500" /> },
@@ -51,7 +63,11 @@ export default function Sidebar({ className }: SidebarProps) {
             href={item.href}
             className={cn(
               "flex items-center px-4 py-3 text-sm font-medium",
-              location === item.href
+              (location === item.href || 
+               // Handle both old and new URL patterns for active state
+               (item.href.includes(`/${username}/`) && location.includes(item.href.split(`/${username}/`)[1])) ||
+               // Special case for profile which is just /:username
+               (item.label === "Profile" && location === `/${username}`))
                 ? "sidebar-item active bg-gray-50 text-gray-900 border-l-3 border-primary-600"
                 : "sidebar-item text-gray-600 hover:bg-gray-50 hover:text-gray-900"
             )}
