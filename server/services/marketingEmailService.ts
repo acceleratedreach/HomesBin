@@ -100,7 +100,13 @@ export class MarketingEmailService {
    * @returns Processed email content
    */
   static processTemplate(template: EmailTemplate, listing?: Listing): { subject: string, text: string, html: string } {
-    let { subject, text, html } = template;
+    // Get the template content - handle potentially undefined fields by providing empty string defaults
+    let subject = template.subject || '';
+    const content = template.content || '';
+    
+    // Initialize text and html with the content
+    let text = content;
+    let html = content;
     
     // Replace template variables with listing data if available
     if (listing) {
@@ -109,16 +115,45 @@ export class MarketingEmailService {
         '{{property_price}}': listing.price ? `$${listing.price.toLocaleString()}` : '',
         '{{property_bedrooms}}': listing.bedrooms?.toString() || '',
         '{{property_bathrooms}}': listing.bathrooms?.toString() || '',
-        '{{property_sqft}}': listing.squareFootage?.toString() || '',
+        '{{property_sqft}}': listing.squareFeet?.toString() || '',
         '{{property_description}}': listing.description || '',
-        '{{property_type}}': listing.type || '',
-        '{{property_year_built}}': listing.yearBuilt?.toString() || '',
-        '{{property_features}}': listing.features?.join(', ') || '',
-        '{{agent_name}}': '', // Would need to get from user profile
-        '{{agent_phone}}': '', // Would need to get from user profile
-        '{{agent_email}}': '', // Would need to get from user profile
-        '{{property_url}}': `${process.env.SITE_URL || 'https://homesbin.com'}/listings/${listing.id}`
+        '{{property_type}}': listing.propertyType || '',
+        '{{property_url}}': `${process.env.SITE_URL || 'https://homesbin.com'}/listings/${listing.id}`,
+        
+        // Also support listing_ prefix for consistency
+        '{{listing_address}}': listing.address || '',
+        '{{listing_price}}': listing.price ? `$${listing.price.toLocaleString()}` : '',
+        '{{listing_bedrooms}}': listing.bedrooms?.toString() || '',
+        '{{listing_bathrooms}}': listing.bathrooms?.toString() || '',
+        '{{listing_sqft}}': listing.squareFeet?.toString() || '',
+        '{{listing_description}}': listing.description || '',
+        '{{listing_type}}': listing.propertyType || '',
+        '{{listing_url}}': `${process.env.SITE_URL || 'https://homesbin.com'}/listings/${listing.id}`,
+        
+        // Handle potentially undefined fields by providing empty string defaults
+        '{{listing_city}}': listing.city || '',
+        '{{listing_state}}': listing.state || '',
+        '{{listing_zipCode}}': listing.zipCode || '',
+        '{{listing_title}}': listing.title || ''
       };
+      
+      // Add features if available, with safe type checking
+      if (listing.features) {
+        let featuresText = '';
+        try {
+          if (typeof listing.features === 'string') {
+            featuresText = listing.features as string;
+          } else if (Array.isArray(listing.features)) {
+            featuresText = (listing.features as string[]).join(', ');
+          } else if (listing.features && typeof listing.features === 'object') {
+            featuresText = Object.values(listing.features as Record<string, string>).join(', ');
+          }
+        } catch (e) {
+          console.warn('Error processing features:', e);
+        }
+        replacements['{{property_features}}'] = featuresText;
+        replacements['{{listing_features}}'] = featuresText;
+      }
       
       // Replace all occurrences of each placeholder in the content
       Object.entries(replacements).forEach(([placeholder, value]) => {
@@ -126,6 +161,19 @@ export class MarketingEmailService {
         text = text.replace(new RegExp(placeholder, 'g'), value);
         html = html.replace(new RegExp(placeholder, 'g'), value);
       });
+    }
+    
+    // If the content doesn't look like HTML, wrap it in a basic HTML template
+    if (!html.includes('<html') && !html.includes('<body')) {
+      html = `
+        <html>
+          <body>
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              ${html.replace(/\n/g, '<br>')}
+            </div>
+          </body>
+        </html>
+      `;
     }
     
     return { subject, text, html };
