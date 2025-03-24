@@ -22,13 +22,18 @@ export default function Header({ isAuthenticated }: HeaderProps) {
   const handleLogout = async () => {
     try {
       await apiRequest('POST', '/api/auth/logout', {});
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
+      // Force complete invalidation of all queries to ensure fresh state
+      await queryClient.invalidateQueries();
+      // Set a flag to ensure we know we just logged out
+      sessionStorage.setItem('just_logged_out', 'true');
+      // Then redirect
       setLocation('/login');
       toast({
         title: "Logged out successfully",
         description: "You have been logged out of your account",
       });
     } catch (error) {
+      console.error('Logout error:', error);
       toast({
         title: "Error",
         description: "Failed to log out. Please try again.",
