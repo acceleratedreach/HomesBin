@@ -46,6 +46,20 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
     
     return (
       <Switch>
+        {/* Root path needs to be first to avoid wildcard routes catching it */}
+        <Route path="/">
+          {() => {
+            // If we have a username, redirect to the user dashboard
+            if (username) {
+              setLocation(`/${username}/dashboard`);
+            } else {
+              return <Dashboard />;
+            }
+            return null;
+          }}
+        </Route>
+        
+        {/* Standard routes */}
         <Route path="/dashboard">
           {() => <Dashboard />}
         </Route>
@@ -55,14 +69,14 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
         <Route path="/profile">
           {() => <Profile />}
         </Route>
-        <Route path="/listings">
-          {() => <Listings />}
-        </Route>
         <Route path="/listings/new">
           {() => <ListingCreate />}
         </Route>
         <Route path="/listings/:id/edit">
           {(params) => <ListingEdit id={Number(params.id)} />}
+        </Route>
+        <Route path="/listings">
+          {() => <Listings />}
         </Route>
         <Route path="/email-marketing">
           {() => <EmailMarketing />}
@@ -88,19 +102,6 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
           {(params) => <Profile username={params.username} />}
         </Route>
         
-        {/* Redirect root to the user's dashboard if logged in */}
-        <Route path="/">
-          {() => {
-            // If we have a username, redirect to the user dashboard
-            if (username) {
-              setLocation(`/${username}/dashboard`);
-            } else {
-              return <Dashboard />;
-            }
-            return null;
-          }}
-        </Route>
-        
         <Route component={NotFound} />
       </Switch>
     );
@@ -115,14 +116,16 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
         {() => <Register />}
       </Route>
       
+      {/* Root path must be defined before /:username to avoid being caught by the wildcard */}
+      <Route path="/">
+        {() => <LandingPage />}
+      </Route>
+      
       {/* Public profile routes for non-authenticated users */}
       <Route path="/:username">
         {(params) => <Profile username={params.username} />}
       </Route>
       
-      <Route path="/">
-        {() => <LandingPage />}
-      </Route>
       <Route>
         {() => <Login />}
       </Route>
