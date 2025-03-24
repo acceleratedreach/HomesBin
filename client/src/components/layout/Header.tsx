@@ -64,10 +64,10 @@ export default function Header({ isAuthenticated }: HeaderProps) {
           {isAuthenticated ? (
             <>
               <Button asChild variant="default" className="bg-blue-500 hover:bg-blue-600 rounded-md">
-                <Link href="/dashboard">Dashboard</Link>
+                <Link href={userData?.username ? `/${userData.username}/dashboard` : "/dashboard"}>Dashboard</Link>
               </Button>
               <Button asChild variant="outline" className="text-blue-500 border-blue-500">
-                <Link href="/profile">My Profile</Link>
+                <Link href={userData?.username ? `/profile/${userData.username}` : "/profile"}>My Profile</Link>
               </Button>
               <Button variant="ghost" onClick={handleLogout} className="text-gray-600">
                 Logout

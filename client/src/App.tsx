@@ -80,11 +80,7 @@ function AppRoutes() {
   
   // Handle authentication-based redirects
   useEffect(() => {
-    // If authenticated and on the root path, redirect to user-specific dashboard
-    if (isAuthenticated && currentUser?.username && location === '/') {
-      setLocation(`/${currentUser.username}/dashboard`);
-      return;
-    }
+    // Don't redirect from root path - allow users to see landing page even when authenticated
     
     // If not authenticated and trying to access a protected route
     const isPublicRoute = PUBLIC_ROUTES.includes(location) || 
@@ -95,7 +91,7 @@ function AppRoutes() {
       setLocation('/login');
     }
     
-  }, [isAuthenticated, location, currentUser, setLocation]);
+  }, [isAuthenticated, location, setLocation]);
   
   return (
     <Switch>
