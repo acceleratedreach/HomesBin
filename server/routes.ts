@@ -302,6 +302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Support both URL patterns for verification to ensure backward compatibility
   app.get("/api/user/verify-email/:token", async (req, res) => {
     try {
       const { token } = req.params;
@@ -313,6 +314,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ message: "Email verified successfully" });
     } catch (error) {
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+  
+  // Support query param pattern for token (used by client)
+  app.get("/api/user/verify-email", async (req, res) => {
+    try {
+      const token = req.query.token as string;
+      
+      if (!token) {
+        return res.status(400).json({ message: "No verification token provided" });
+      }
+      
+      const success = await storage.verifyEmail(token);
+      
+      if (!success) {
+        return res.status(400).json({ message: "Invalid or expired verification token" });
+      }
+      
+      res.json({ message: "Email verified successfully" });
+    } catch (error) {
+      console.error("Error in verify-email route:", error);
       res.status(500).json({ message: "Server error" });
     }
   });

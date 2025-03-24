@@ -20,18 +20,18 @@ const getVerificationEmailTemplate = (token: string) => {
   
   return {
     subject: 'Verify your HomesBin account',
-    text: `Welcome to HomesBin! Please verify your email address by clicking this link: ${verificationUrl}`,
+    text: `Welcome to HomesBin! Please verify your email address by copying and pasting this link into your browser: ${verificationUrl}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #4a6cf7;">Welcome to HomesBin!</h2>
         <p>Thank you for signing up. Please verify your email address to access all features.</p>
         <p>
-          <a href="${verificationUrl}" style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
+          <a href="${verificationUrl}" data-click-track="off" style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
             Verify Email Address
           </a>
         </p>
         <p>Or copy and paste this link in your browser:</p>
-        <p>${verificationUrl}</p>
+        <p style="word-break: break-all;">${verificationUrl}</p>
         <p>This link will expire in 24 hours.</p>
         <p>If you didn't create an account, you can safely ignore this email.</p>
       </div>
@@ -44,18 +44,18 @@ const getPasswordResetTemplate = (token: string) => {
   
   return {
     subject: 'Reset your HomesBin password',
-    text: `You requested to reset your password. Click this link to create a new password: ${resetUrl}`,
+    text: `You requested to reset your password. Copy and paste this link into your browser to create a new password: ${resetUrl}`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #4a6cf7;">Reset Your Password</h2>
         <p>You've requested to reset your password. Click the button below to create a new password.</p>
         <p>
-          <a href="${resetUrl}" style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
+          <a href="${resetUrl}" data-click-track="off" style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
             Reset Password
           </a>
         </p>
         <p>Or copy and paste this link in your browser:</p>
-        <p>${resetUrl}</p>
+        <p style="word-break: break-all;">${resetUrl}</p>
         <p>This link will expire in 1 hour.</p>
         <p>If you didn't request a password reset, you can safely ignore this email.</p>
       </div>
@@ -108,8 +108,17 @@ const sendEmail = async (to: string, subject: string, text: string, html: string
       },
       subject,
       text,
-      html
+      html,
+      trackingSettings: {
+        clickTracking: {
+          enable: false
+        },
+        openTracking: {
+          enable: true
+        }
+      }
     });
+    console.log(`Email sent successfully to: ${to} with subject: ${subject}`);
     return true;
   } catch (error) {
     console.error('SendGrid email error:', error);
