@@ -60,16 +60,33 @@ export default function LandingPage() {
               Create beautiful listing pages to showcase your properties and build your real estate brand with our powerful platform.
             </p>
             <div className="mt-8 flex justify-center space-x-4">
-              <Button asChild size="lg" className="font-medium">
-                <Link href="/dashboard">
-                  Go to Dashboard
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="lg" className="font-medium">
-                <Link href="/profile">
-                  View My Profile
-                </Link>
-              </Button>
+              {isAuthenticated ? (
+                <>
+                  <Button asChild size="lg" className="font-medium">
+                    <Link href="/dashboard">
+                      Go to Dashboard
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" size="lg" className="font-medium">
+                    <Link href="/profile">
+                      View My Profile
+                    </Link>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button asChild size="lg" className="font-medium">
+                    <Link href="/login">
+                      Login
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" size="lg" className="font-medium">
+                    <Link href="/register">
+                      Sign Up Today
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
             <p className="text-sm text-center mt-4 text-gray-500">
               Trusted by real estate professionals nationwide
@@ -160,14 +177,25 @@ export default function LandingPage() {
               Join thousands of successful agents who have boosted their sales with our platform.
             </p>
             <div className="mt-8">
-              <Button asChild size="lg" className="font-medium">
-                <Link href="/dashboard">
-                  Go to Dashboard
-                  <svg className="ml-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </Link>
-              </Button>
+              {isAuthenticated ? (
+                <Button asChild size="lg" className="font-medium">
+                  <Link href="/dashboard">
+                    Go to Dashboard
+                    <svg className="ml-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </Link>
+                </Button>
+              ) : (
+                <Button asChild size="lg" className="font-medium">
+                  <Link href="/register">
+                    Sign Up Today
+                    <svg className="ml-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </Link>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

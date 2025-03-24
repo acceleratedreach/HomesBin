@@ -37,15 +37,29 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
 
   // Define array of public routes that don't require authentication
   const publicRoutes = ["/", "/login", "/register"];
-  const isPublicRoute = publicRoutes.includes(location) || location === "/" || 
-                       location.match(/^\/[^\/]+$/) !== null; // Username route like /johndoe
+  // Only public profile routes are allowed without auth, not dashboard routes
+  const isPublicProfileRoute = location.match(/^\/[^\/]+$/) !== null; // Username route like /johndoe
+  const isPublicRoute = publicRoutes.includes(location) || location === "/" || isPublicProfileRoute;
+  
+  // Check if this is a user's dashboard route
+  const dashboardMatch = location.match(/^\/([^\/]+)\/dashboard/);
+  const isDashboardRoute = dashboardMatch !== null;
+  
+  // If it's a dashboard route, extract the username to check ownership
+  const dashboardUsername = isDashboardRoute ? dashboardMatch[1] : null;
+  const isOwnDashboard = isAuthenticated && dashboardUsername === currentUser?.username;
   
   useEffect(() => {
-    // Only redirect to login if trying to access protected routes
-    if (!isAuthenticated && !isPublicRoute) {
+    // Redirect to login if:
+    // 1. User is not authenticated and tries to access a protected route, or
+    // 2. User tries to access any dashboard route while not authenticated, or
+    // 3. User tries to access someone else's dashboard
+    if ((!isAuthenticated && !isPublicRoute) || 
+        (isDashboardRoute && !isAuthenticated) ||
+        (isDashboardRoute && isAuthenticated && !isOwnDashboard)) {
       setLocation("/login");
     }
-  }, [isAuthenticated, location, isPublicRoute, setLocation]);
+  }, [isAuthenticated, location, isPublicRoute, isDashboardRoute, isOwnDashboard, setLocation]);
 
   if (isAuthenticated) {
     const username = currentUser?.username;
