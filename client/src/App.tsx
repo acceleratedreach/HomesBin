@@ -18,6 +18,9 @@ import SocialContent from "@/pages/SocialContent";
 import ListingGraphics from "@/pages/ListingGraphics";
 import LotMaps from "@/pages/LotMaps";
 import ThemePage from "@/pages/ThemePage";
+import VerifyEmail from "@/components/auth/VerifyEmail";
+import ResetPassword from "@/components/auth/ResetPassword";
+import ForgotPassword from "@/components/auth/ForgotPassword";
 import { useQuery } from "@tanstack/react-query";
 
 // Custom routing component for user profile pages
@@ -36,7 +39,7 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
   const [location, setLocation] = useLocation();
 
   // Define array of public routes that don't require authentication
-  const publicRoutes = ["/", "/login", "/register"];
+  const publicRoutes = ["/", "/login", "/register", "/verify-email", "/reset-password", "/forgot-password"];
   // Only public profile routes are allowed without auth, not dashboard routes
   const isPublicProfileRoute = location.match(/^\/[^\/]+$/) !== null; // Username route like /johndoe
   const isPublicRoute = publicRoutes.includes(location) || location === "/" || isPublicProfileRoute;
@@ -134,6 +137,15 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
       </Route>
       <Route path="/register">
         {() => <Register />}
+      </Route>
+      <Route path="/verify-email">
+        {() => <VerifyEmail />}
+      </Route>
+      <Route path="/reset-password">
+        {() => <ResetPassword />}
+      </Route>
+      <Route path="/forgot-password">
+        {() => <ForgotPassword />}
       </Route>
       
       {/* Root path must be defined before /:username to avoid being caught by the wildcard */}
