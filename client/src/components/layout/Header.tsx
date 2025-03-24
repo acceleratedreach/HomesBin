@@ -51,20 +51,18 @@ export default function Header({ isAuthenticated }: HeaderProps) {
           </Link>
         </div>
         <div className="flex items-center space-x-3">
-          {isAuthenticated && userData?.username ? (
+          {isAuthenticated ? (
             <>
               <Button asChild variant="default" className="bg-blue-500 hover:bg-blue-600 rounded-md">
-                <Link href={`/${userData.username}/dashboard`}>Dashboard</Link>
+                <Link href="/dashboard">Dashboard</Link>
               </Button>
               <Button asChild variant="outline" className="text-blue-500 border-blue-500">
-                <Link href={`/${userData.username}`}>My Profile</Link>
+                <Link href="/profile">My Profile</Link>
               </Button>
               <Button variant="ghost" onClick={handleLogout} className="text-gray-600">
                 Logout
               </Button>
             </>
-          ) : isAuthenticated ? (
-            <div className="text-gray-600 text-sm animate-pulse">Loading...</div>
           ) : (
             <>
               <Button asChild variant="outline" className="text-blue-500 border-blue-500">

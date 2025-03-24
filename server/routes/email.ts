@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { randomBytes } from 'crypto';
 import { MailService } from '@sendgrid/mail';
 import { User } from '@shared/schema';
-import { EmailService } from '../services/emailService';
 
 // Initialize SendGrid
 const mailService = new MailService();
@@ -17,7 +16,7 @@ if (process.env.SENDGRID_API_KEY) {
 
 // Email templates
 const getVerificationEmailTemplate = (token: string) => {
-  const verificationUrl = `${process.env.SITE_URL || 'https://homesbin.com'}/verify-email?token=${token}`;
+  const verificationUrl = `${process.env.SITE_URL || 'http://localhost:5000'}/verify-email?token=${token}`;
   
   return {
     subject: 'Verify your HomesBin account',
@@ -41,7 +40,7 @@ const getVerificationEmailTemplate = (token: string) => {
 };
 
 const getPasswordResetTemplate = (token: string) => {
-  const resetUrl = `${process.env.SITE_URL || 'https://homesbin.com'}/reset-password?token=${token}`;
+  const resetUrl = `${process.env.SITE_URL || 'http://localhost:5000'}/reset-password?token=${token}`;
   
   return {
     subject: 'Reset your HomesBin password',
@@ -82,7 +81,7 @@ const getWelcomeEmailTemplate = (user: User) => {
         </ul>
         <p>Get started by adding your first property listing!</p>
         <p>
-          <a href="${process.env.SITE_URL || 'https://homesbin.com'}/${user.username}/listings/new" style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
+          <a href="${process.env.SITE_URL || 'http://localhost:5000'}/listings/create" style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
             Create Your First Listing
           </a>
         </p>
@@ -304,7 +303,7 @@ export function registerEmailRoutes(app: Express, storage: IStorage) {
         return res.status(404).json({ message: 'User not found' });
       }
 
-      // Send welcome email using custom template
+      // Send welcome email
       const template = getWelcomeEmailTemplate(user);
       const emailSent = await sendEmail(
         user.email,
@@ -312,9 +311,6 @@ export function registerEmailRoutes(app: Express, storage: IStorage) {
         template.text,
         template.html
       );
-      
-      // Or alternatively using the EmailService directly
-      // const emailSent = await EmailService.sendWelcomeEmail(user.email, user.username);
 
       if (emailSent) {
         res.status(200).json({ message: 'Welcome email sent' });

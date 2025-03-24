@@ -30,7 +30,7 @@ export class EmailService {
 
   static async sendVerificationEmail(userEmail: string, verificationToken: string): Promise<boolean> {
     console.log(`[Email Service] Attempting to send verification email to: ${userEmail}`);
-    const siteUrl = process.env.SITE_URL || 'https://homesbin.com';
+    const siteUrl = process.env.SITE_URL || 'http://localhost:5000';
     const verificationLink = `${siteUrl}/verify-email?token=${verificationToken}`;
     console.log('[Email Service] Generated verification link:', verificationLink);
 
@@ -50,7 +50,7 @@ export class EmailService {
 
   static async sendPasswordResetEmail(userEmail: string, resetToken: string): Promise<boolean> {
     console.log(`Attempting to send password reset email to: ${userEmail}`);
-    const siteUrl = process.env.SITE_URL || 'https://homesbin.com';
+    const siteUrl = process.env.SITE_URL || 'http://localhost:5000';
     const resetLink = `${siteUrl}/reset-password?token=${resetToken}`;
     console.log('Generated password reset link:', resetLink);
 
@@ -68,9 +68,9 @@ export class EmailService {
     return this.sendEmail(userEmail, template);
   }
 
-  static async sendWelcomeEmail(userEmail: string, username: string): Promise<boolean> {
+  static async sendWelcomeEmail(userEmail: string): Promise<boolean> {
     console.log(`Attempting to send welcome email to: ${userEmail}`);
-    const siteUrl = process.env.SITE_URL || 'https://homesbin.com';
+    const siteUrl = process.env.SITE_URL || 'http://localhost:5000';
 
     const template: EmailTemplate = {
       subject: 'Welcome to HomesBin!',
@@ -84,7 +84,7 @@ export class EmailService {
           <li>Send tailored marketing emails</li>
           <li>Generate lot maps for developements</li>
         </ul>
-        <p>Get started by visiting your <a href="${siteUrl}/${username}/dashboard">dashboard</a>.</p>
+        <p>Get started by visiting your <a href="${siteUrl}/dashboard">dashboard</a>.</p>
       `
     };
 
