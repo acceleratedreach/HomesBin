@@ -68,7 +68,7 @@ export class EmailService {
     return this.sendEmail(userEmail, template);
   }
 
-  static async sendWelcomeEmail(userEmail: string): Promise<boolean> {
+  static async sendWelcomeEmail(userEmail: string, username: string): Promise<boolean> {
     console.log(`Attempting to send welcome email to: ${userEmail}`);
     const siteUrl = process.env.SITE_URL || 'https://homesbin.com';
 
@@ -84,7 +84,7 @@ export class EmailService {
           <li>Send tailored marketing emails</li>
           <li>Generate lot maps for developements</li>
         </ul>
-        <p>Get started by visiting your <a href="${siteUrl}/dashboard">dashboard</a>.</p>
+        <p>Get started by visiting your <a href="${siteUrl}/${username}/dashboard">dashboard</a>.</p>
       `
     };
 

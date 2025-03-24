@@ -81,7 +81,7 @@ const getWelcomeEmailTemplate = (user: User) => {
         </ul>
         <p>Get started by adding your first property listing!</p>
         <p>
-          <a href="${process.env.SITE_URL || 'https://homesbin.com'}/listings/create" style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
+          <a href="${process.env.SITE_URL || 'https://homesbin.com'}/${user.username}/listings/new" style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
             Create Your First Listing
           </a>
         </p>
