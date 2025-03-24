@@ -51,9 +51,13 @@ export default function RegisterForm() {
       await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
       
       // Redirect to user-specific dashboard
-      if (response && response.user && response.user.username) {
+      if (response && typeof response === 'object' && 'user' in response && 
+          response.user && typeof response.user === 'object' && 
+          'username' in response.user && response.user.username) {
+        console.log('Registration successful, redirecting to:', `/${response.user.username}/dashboard`);
         setLocation(`/${response.user.username}/dashboard`);
       } else {
+        console.log('Registration successful using fallback username:', values.username);
         // Use the username from the form as fallback
         setLocation(`/${values.username}/dashboard`);
       }

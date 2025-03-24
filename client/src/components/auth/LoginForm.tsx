@@ -43,20 +43,36 @@ export default function LoginForm() {
       await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
       
       // Redirect to user-specific dashboard
-      if (response && response.user && response.user.username) {
+      if (response && typeof response === 'object' && 'user' in response && 
+          response.user && typeof response.user === 'object' && 
+          'username' in response.user && response.user.username) {
+        console.log('Login successful, redirecting to:', `/${response.user.username}/dashboard`);
         setLocation(`/${response.user.username}/dashboard`);
       } else {
         // Fallback - query for session data directly
-        const sessionData = await queryClient.fetchQuery({ 
-          queryKey: ['/api/auth/session']
-        });
-        
-        if (sessionData && sessionData.user && sessionData.user.username) {
-          setLocation(`/${sessionData.user.username}/dashboard`);
-        } else {
+        try {
+          const sessionData = await queryClient.fetchQuery({ 
+            queryKey: ['/api/auth/session']
+          });
+          
+          if (sessionData && typeof sessionData === 'object' && 'user' in sessionData && 
+              sessionData.user && typeof sessionData.user === 'object' && 
+              'username' in sessionData.user && sessionData.user.username) {
+            console.log('Login successful (from session), redirecting to:', `/${sessionData.user.username}/dashboard`);
+            setLocation(`/${sessionData.user.username}/dashboard`);
+          } else {
+            console.error('Login issue: Session data missing username', sessionData);
+            toast({
+              title: "Login issue",
+              description: "Logged in successfully but couldn't determine username.",
+              variant: "destructive",
+            });
+          }
+        } catch (sessionError) {
+          console.error('Error fetching session after login:', sessionError);
           toast({
             title: "Login issue",
-            description: "Logged in successfully but couldn't determine username.",
+            description: "Logged in but couldn't retrieve your account details.",
             variant: "destructive",
           });
         }

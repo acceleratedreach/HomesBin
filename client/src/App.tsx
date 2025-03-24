@@ -234,7 +234,14 @@ function App() {
     staleTime: 1000 * 60 * 5 // 5 minutes
   });
   
-  const isAuthenticated = sessionData && sessionData.user ? true : false;
+  const isAuthenticated = sessionData && 
+    typeof sessionData === 'object' && 
+    'user' in sessionData && 
+    sessionData.user ? true : false;
+    
+  // For debugging authentication state
+  console.log('Auth status:', isAuthenticated, 
+    sessionData ? 'Session data exists' : 'No session data');
   
   const { data: userData, isLoading: userLoading } = useQuery({
     queryKey: ['/api/user'],
