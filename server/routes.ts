@@ -622,7 +622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Set up site URL if not set - used in email links
   if (!process.env.SITE_URL) {
-    process.env.SITE_URL = 'http://localhost:5000';
+    process.env.SITE_URL = 'https://homesbin.com';
     console.log(`Notice: SITE_URL not set, using default: ${process.env.SITE_URL}`);
   }
 
