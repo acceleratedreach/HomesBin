@@ -30,24 +30,23 @@ export default function Sidebar({ className }: SidebarProps) {
   // Generate links based on username for the custom URL structure
   const navItems = username ? [
     { href: `/${username}/dashboard`, label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: `/${username}`, label: "Profile", icon: <User className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: false },
     { href: `/${username}/listings`, label: "Listings", icon: <FileText className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
     { href: `/${username}/theme`, label: "Theme", icon: <Palette className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
     { href: `/${username}/email-marketing`, label: "Email Marketing", icon: <Mail className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: `/${username}/social-content`, label: "Social Content", icon: <MessageSquare className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
+    { href: `/${username}/social-content`, label: "Social Content", icon: <MessageSquare className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true, comingSoon: true },
     { href: `/${username}/listing-graphics`, label: "Listing Graphics", icon: <Image className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: `/${username}/lot-maps`, label: "Lot Maps", icon: <Map className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
+    { href: `/${username}/lot-maps`, label: "Lot Maps", icon: <Map className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true, comingSoon: true },
     { href: `/${username}/settings`, label: "Settings", icon: <Settings className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: false },
+    { href: `/${username}`, label: "View Public Profile", icon: <User className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: false },
   ] : [
     // Fallback if no username is available
     { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: "/profile", label: "Profile", icon: <User className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: false },
     { href: "/listings", label: "Listings", icon: <FileText className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
     { href: "/theme", label: "Theme", icon: <Palette className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
     { href: "/email-marketing", label: "Email Marketing", icon: <Mail className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: "/social-content", label: "Social Content", icon: <MessageSquare className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
+    { href: "/social-content", label: "Social Content", icon: <MessageSquare className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true, comingSoon: true },
     { href: "/listing-graphics", label: "Listing Graphics", icon: <Image className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: "/lot-maps", label: "Lot Maps", icon: <Map className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
+    { href: "/lot-maps", label: "Lot Maps", icon: <Map className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true, comingSoon: true },
     { href: "/settings", label: "Settings", icon: <Settings className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: false },
   ];
 
@@ -77,7 +76,12 @@ export default function Sidebar({ className }: SidebarProps) {
             >
               {item.icon}
               {item.label}
-              {isDisabled && (
+              {item.comingSoon && (
+                <span className="ml-auto text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-sm font-medium">
+                  Coming Soon
+                </span>
+              )}
+              {isDisabled && !item.comingSoon && (
                 <span className="ml-auto text-xs text-gray-500">
                   (Verify email)
                 </span>

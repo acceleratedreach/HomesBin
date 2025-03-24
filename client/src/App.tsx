@@ -53,16 +53,23 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
     // Extract the feature if we're on a user feature route
     const featurePath = isUserFeatureRoute ? routeMatch[2] : null;
     
-    // Special handling for settings page - always allow access if authenticated
+    // Special handling for settings page and public profiles
     const isSettingsAccess = featurePath === 'settings';
+    const isViewingPublicProfile = isPublicProfileRoute && !isUserFeatureRoute;
+    
+    // Determine if user is trying to access someone else's dashboard
+    const isAccessingOtherUserDashboard = isUserFeatureRoute && 
+                                         isAuthenticated && 
+                                         !isOwnRoute && 
+                                         !isSettingsAccess;
     
     // Redirect to login if:
     // 1. User is not authenticated and tries to access a protected route, or
-    // 2. User tries to access a user-specific route (/username/...) while not authenticated, or
-    // 3. User tries to access someone else's routes (except settings)
+    // 2. User tries to access a user-specific feature route (/username/...) while not authenticated (except public profiles), or
+    // 3. User tries to access someone else's dashboard routes (except public profiles)
     if ((!isAuthenticated && !isPublicRoute) || 
-        (isUserFeatureRoute && !isAuthenticated) ||
-        (isUserFeatureRoute && isAuthenticated && !isOwnRoute && !isSettingsAccess)) {
+        (isUserFeatureRoute && !isAuthenticated && !isSettingsAccess) ||
+        isAccessingOtherUserDashboard) {
       console.log('Redirecting to login because: path requires authentication');
       setLocation("/login");
     }
