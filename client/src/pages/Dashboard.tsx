@@ -15,9 +15,16 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ username }: DashboardProps = {}) {
-  const { data: userSession } = useQuery({
+  const { data: userSession } = useQuery<{ user: { username: string } }>({
     queryKey: ['/api/auth/session'],
   });
+
+  // Ensure we're on the correct user's dashboard
+  const isOwnDashboard = userSession?.user && userSession.user.username === username;
+
+  if (!isOwnDashboard) {
+    return null; // This will be handled by the router's authentication logic
+  }
 
   const { data: listings, isLoading: loadingListings } = useQuery({
     queryKey: ['/api/listings'],
@@ -28,6 +35,7 @@ export default function Dashboard({ username }: DashboardProps = {}) {
       <Header isAuthenticated={!!userSession?.user} />
       
       <div className="flex-grow flex">
+        {/* Always show sidebar in dashboard */}
         <Sidebar />
         
         <main className="flex-1 overflow-y-auto">
@@ -37,7 +45,7 @@ export default function Dashboard({ username }: DashboardProps = {}) {
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-2xl font-bold">Dashboard</h1>
               <Button asChild>
-                <Link href="/listings/new">
+                <Link href={`/${username}/listings/new`}>
                   <Plus className="h-4 w-4 mr-2" /> Add New Listing
                 </Link>
               </Button>
@@ -68,7 +76,7 @@ export default function Dashboard({ username }: DashboardProps = {}) {
                               {listings.length - 3} more listings
                             </p>
                             <Button asChild variant="outline">
-                              <Link href="/listings">View All Listings</Link>
+                              <Link href={`/${username}/listings`}>View All Listings</Link>
                             </Button>
                           </CardContent>
                         </Card>
@@ -83,7 +91,7 @@ export default function Dashboard({ username }: DashboardProps = {}) {
                           Create your first property listing to get started
                         </p>
                         <Button asChild>
-                          <Link href="/listings/new">
+                          <Link href={`/${username}/listings/new`}>
                             <Plus className="h-4 w-4 mr-2" /> Create Listing
                           </Link>
                         </Button>

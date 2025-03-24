@@ -20,15 +20,17 @@ interface SidebarProps {
 export default function Sidebar({ className }: SidebarProps) {
   const [location] = useLocation();
   
-  const { data: userData } = useQuery({
+  const { data: userData } = useQuery<{ username: string; emailVerified: boolean }>({
     queryKey: ['/api/user'],
   });
   
-  const username = userData?.username || "";
+  const username = userData?.username;
   const isEmailVerified = userData?.emailVerified || false;
 
-  // Generate links based on username for the custom URL structure
-  const navItems = username ? [
+  // Only generate nav items if we have a username
+  if (!username) return null;
+
+  const navItems = [
     { href: `/${username}/dashboard`, label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
     { href: `/${username}/listings`, label: "Listings", icon: <FileText className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
     { href: `/${username}/theme`, label: "Theme", icon: <Palette className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
@@ -38,16 +40,6 @@ export default function Sidebar({ className }: SidebarProps) {
     { href: `/${username}/lot-maps`, label: "Lot Maps", icon: <Map className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true, comingSoon: true },
     { href: `/${username}/settings`, label: "Settings", icon: <Settings className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: false },
     { href: `/${username}`, label: "View Public Profile", icon: <User className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: false },
-  ] : [
-    // Fallback if no username is available
-    { href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: "/listings", label: "Listings", icon: <FileText className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: "/theme", label: "Theme", icon: <Palette className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: "/email-marketing", label: "Email Marketing", icon: <Mail className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: "/social-content", label: "Social Content", icon: <MessageSquare className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true, comingSoon: true },
-    { href: "/listing-graphics", label: "Listing Graphics", icon: <Image className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: "/lot-maps", label: "Lot Maps", icon: <Map className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true, comingSoon: true },
-    { href: "/settings", label: "Settings", icon: <Settings className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: false },
   ];
 
   return (
@@ -59,20 +51,20 @@ export default function Sidebar({ className }: SidebarProps) {
       <nav className="flex-1 space-y-1 py-4">
         {navItems.map((item) => {
           const isDisabled = !isEmailVerified && item.requiresVerification;
-          const itemComponent = (
-            <div
-              key={item.href}
+          const isActive = location === item.href;
+          
+          return (
+            <Link 
+              key={item.href} 
+              href={isDisabled ? "#" : item.href}
               className={cn(
                 "flex items-center px-4 py-3 text-sm font-medium",
-                (location === item.href || 
-                 // Handle both old and new URL patterns for active state
-                 (item.href.includes(`/${username}/`) && location.includes(item.href.split(`/${username}/`)[1])) ||
-                 // Special case for profile which is just /:username
-                 (item.label === "Profile" && location === `/${username}`))
-                  ? "sidebar-item active bg-gray-50 text-gray-900 border-l-3 border-primary-600"
-                  : "sidebar-item text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+                isActive
+                  ? "bg-gray-50 text-gray-900 border-l-3 border-primary-600"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
                 isDisabled && "opacity-50 cursor-not-allowed"
               )}
+              onClick={e => isDisabled && e.preventDefault()}
             >
               {item.icon}
               {item.label}
@@ -86,16 +78,6 @@ export default function Sidebar({ className }: SidebarProps) {
                   (Verify email)
                 </span>
               )}
-            </div>
-          );
-
-          if (isDisabled) {
-            return itemComponent;
-          }
-
-          return (
-            <Link key={item.href} href={item.href}>
-              {itemComponent}
             </Link>
           );
         })}

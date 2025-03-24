@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
@@ -17,7 +18,8 @@ interface ProfileProps {
 }
 
 export default function Profile({ username }: ProfileProps = {}) {
-  const { data: userSession } = useQuery({
+  const [location] = useLocation();
+  const { data: userSession } = useQuery<{ user: { username: string; email: string } }>({
     queryKey: ['/api/auth/session'],
   });
   
@@ -28,7 +30,14 @@ export default function Profile({ username }: ProfileProps = {}) {
     enabled: username ? true : !!userSession?.user,
   });
   
-  const isOwnProfile = !username || (userSession?.user && userSession.user.username === username);
+  // Check if this is the user's own profile
+  const isOwnProfile = userSession?.user && userSession.user.username === username;
+  
+  // Check if we're accessing this through the dashboard
+  const isDashboardView = location.includes(`/${username}/dashboard`);
+
+  // Never show sidebar on profile view - it should only be shown in dashboard
+  const showSidebar = false;
   
   // Get listings for the profile based on whether it's the user's own profile or another user
   const { data: listings } = useQuery({
@@ -57,7 +66,7 @@ export default function Profile({ username }: ProfileProps = {}) {
       <Header isAuthenticated={!!userSession?.user} />
       
       <div className="flex-grow flex">
-        {isOwnProfile && <Sidebar />}
+        {showSidebar && <Sidebar />}
         
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 md:px-8">

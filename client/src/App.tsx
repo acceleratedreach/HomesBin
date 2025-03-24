@@ -23,6 +23,15 @@ import ResetPassword from "@/components/auth/ResetPassword";
 import ForgotPassword from "@/components/auth/ForgotPassword";
 import { useQuery } from "@tanstack/react-query";
 
+interface SessionData {
+  user: {
+    username: string;
+    email: string;
+    emailVerified: boolean;
+    fullName?: string;
+  };
+}
+
 function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated: boolean, currentUser: any }) {
   const [location, setLocation] = useLocation();
 
@@ -44,9 +53,8 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
                        isPublicProfileRoute ? profileMatch![1] : null;
   const isOwnRoute = isAuthenticated && routeUsername === currentUser?.username;
   
-  // Check if this is the settings page (special case) 
-  // Settings and Profile pages are accessible even for unverified users
-  const isSettingsPage = isUserFeatureRoute && routeMatch[2] === 'settings';
+  // Check if this is the settings page or profile page (special cases) 
+  const isSettingsPage = isUserFeatureRoute && routeMatch?.[2] === 'settings';
   const isProfilePage = isPublicProfileRoute;
   
   useEffect(() => {
@@ -63,12 +71,15 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
                                          !isOwnRoute && 
                                          !isSettingsAccess;
     
+    // Allow settings access if authenticated, regardless of email verification
+    const canAccessSettings = isSettingsAccess && isAuthenticated && isOwnRoute;
+    
     // Redirect to login if:
-    // 1. User is not authenticated and tries to access a protected route, or
-    // 2. User tries to access a user-specific feature route (/username/...) while not authenticated (except public profiles and settings), or
+    // 1. User is not authenticated and tries to access a protected route (except settings), or
+    // 2. User tries to access a user-specific feature route (/username/...) while not authenticated (except public profiles), or
     // 3. User tries to access someone else's dashboard routes (except public profiles)
-    if ((!isAuthenticated && !isPublicRoute && !isSettingsAccess) || 
-        (isUserFeatureRoute && !isAuthenticated && !isSettingsAccess) ||
+    if ((!isAuthenticated && !isPublicRoute && !canAccessSettings) || 
+        (isUserFeatureRoute && !isAuthenticated && !canAccessSettings) ||
         isAccessingOtherUserDashboard) {
       console.log('Redirecting to login because: path requires authentication');
       setLocation("/login");
@@ -196,7 +207,7 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
 }
 
 function App() {
-  const { data: sessionData, isLoading: sessionLoading } = useQuery({ 
+  const { data: sessionData, isLoading: sessionLoading } = useQuery<SessionData>({ 
     queryKey: ['/api/auth/session'],
     retry: false,
     staleTime: 1000 * 60 * 5 // 5 minutes
