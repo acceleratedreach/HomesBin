@@ -61,7 +61,7 @@ export default function Profile({ username }: ProfileProps = {}) {
         
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 md:px-8">
-            <EmailVerificationAlert />
+            {isOwnProfile && <EmailVerificationAlert />}
             
             <div className="mb-8">
               <div className="flex justify-between items-center mb-6">
