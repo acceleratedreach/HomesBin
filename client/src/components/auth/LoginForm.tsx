@@ -49,10 +49,22 @@ export default function LoginForm() {
       console.log('Login successful, redirecting to dashboard');
       
       // Get user data after login
-      const userData = await apiRequest('GET', '/api/user');
+      const userData = await apiRequest('GET', '/api/user') as { 
+        id: number; 
+        username: string; 
+        email: string;
+        emailVerified?: boolean;
+      };
       
       // Redirect to the user's dashboard
-      setLocation(`/${userData.username}/dashboard`);
+      if (userData && userData.username) {
+        console.log('Username available:', userData.username);
+        setLocation(`/${userData.username}/dashboard`);
+      } else {
+        console.error('Username not available in user data:', userData);
+        // Fallback to standard dashboard route
+        setLocation('/dashboard');
+      }
       
       // Display success message
       toast({

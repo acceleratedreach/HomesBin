@@ -56,7 +56,13 @@ function AppRoutes() {
   const isAuthenticated = !!sessionData?.user;
   
   // Fetch user data if authenticated
-  const { data: userData, isLoading: userLoading } = useQuery({
+  const { data: userData, isLoading: userLoading } = useQuery<{
+    id: number;
+    username: string;
+    email: string;
+    emailVerified?: boolean;
+    fullName?: string;
+  }>({
     queryKey: ['/api/user'],
     enabled: isAuthenticated,
     staleTime: 1000 * 60 * 5 // 5 minutes
@@ -74,9 +80,9 @@ function AppRoutes() {
   
   // Handle authentication-based redirects
   useEffect(() => {
-    // If authenticated and on the root path, redirect to dashboard
+    // If authenticated and on the root path, redirect to user-specific dashboard
     if (isAuthenticated && currentUser?.username && location === '/') {
-      setLocation('/dashboard');
+      setLocation(`/${currentUser.username}/dashboard`);
       return;
     }
     
