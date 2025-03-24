@@ -25,7 +25,7 @@ const formSchema = z.object({
 
 export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -39,54 +39,49 @@ export default function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsSubmitting(true);
-      
-      // Execute login API call
       const response = await apiRequest('POST', '/api/auth/login', values);
+      await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
       
-      // Get username from response
-      let username = response?.user?.username;
-      
-      // If login was successful but we don't have username in response
-      if (!username) {
-        // Fetch session data to get username
+      // Redirect to user-specific dashboard
+      if (response && typeof response === 'object' && 'user' in response && 
+          response.user && typeof response.user === 'object' && 
+          'username' in response.user && response.user.username) {
+        console.log('Login successful, redirecting to:', `/${response.user.username}/dashboard`);
+        setLocation(`/${response.user.username}/dashboard`);
+      } else {
+        // Fallback - query for session data directly
         try {
           const sessionData = await queryClient.fetchQuery({ 
             queryKey: ['/api/auth/session']
           });
           
-          if (sessionData?.user?.username) {
-            username = sessionData.user.username;
+          if (sessionData && typeof sessionData === 'object' && 'user' in sessionData && 
+              sessionData.user && typeof sessionData.user === 'object' && 
+              'username' in sessionData.user && sessionData.user.username) {
+            console.log('Login successful (from session), redirecting to:', `/${sessionData.user.username}/dashboard`);
+            setLocation(`/${sessionData.user.username}/dashboard`);
+          } else {
+            console.error('Login issue: Session data missing username', sessionData);
+            toast({
+              title: "Login issue",
+              description: "Logged in successfully but couldn't determine username.",
+              variant: "destructive",
+            });
           }
         } catch (sessionError) {
           console.error('Error fetching session after login:', sessionError);
+          toast({
+            title: "Login issue",
+            description: "Logged in but couldn't retrieve your account details.",
+            variant: "destructive",
+          });
         }
       }
       
-      // Clear any "just logged out" flag if it exists
-      sessionStorage.removeItem('just_logged_out');
-      
-      // Show success toast
       toast({
         title: "Login successful",
         description: "Welcome back to HomesBin!",
       });
-      
-      // Redirect to dashboard with username
-      if (username) {
-        console.log('Login successful, redirecting to:', `/${username}/dashboard`);
-        // Use timeout to ensure UI has time to update before redirect
-        setTimeout(() => {
-          setLocation(`/${username}/dashboard`);
-        }, 200);
-      } else {
-        // Fallback if no username was found
-        console.error('Login issue: Could not determine username after login');
-        toast({
-          title: "Login issue",
-          description: "Logged in but couldn't retrieve your username. Please try again.",
-          variant: "destructive",
-        });
-      }
     } catch (error: any) {
       toast({
         title: "Login failed",

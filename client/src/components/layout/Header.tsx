@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 export default function Header({ isAuthenticated }: HeaderProps) {
-  const [location, setLocation] = useLocation();
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   const { data: userData } = useQuery({
@@ -21,28 +21,14 @@ export default function Header({ isAuthenticated }: HeaderProps) {
 
   const handleLogout = async () => {
     try {
-      // First set the flag that we're logging out (before API call)
-      sessionStorage.setItem('just_logged_out', 'true');
-      
-      // Execute the logout API call
       await apiRequest('POST', '/api/auth/logout', {});
-      
-      // After successful logout, clear all query cache to force fresh state
-      queryClient.clear();
-      
-      // Show success message
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
+      setLocation('/login');
       toast({
         title: "Logged out successfully",
         description: "You have been logged out of your account",
       });
-      
-      // Then redirect to login page
-      setLocation('/login');
     } catch (error) {
-      console.error('Logout error:', error);
-      // Clear the flag if logout failed
-      sessionStorage.removeItem('just_logged_out');
-      
       toast({
         title: "Error",
         description: "Failed to log out. Please try again.",
@@ -68,10 +54,10 @@ export default function Header({ isAuthenticated }: HeaderProps) {
           {isAuthenticated ? (
             <>
               <Button asChild variant="default" className="bg-blue-500 hover:bg-blue-600 rounded-md">
-                <Link href={userData?.username ? `/${userData.username}/dashboard` : '/dashboard'}>Dashboard</Link>
+                <Link href="/dashboard">Dashboard</Link>
               </Button>
               <Button asChild variant="outline" className="text-blue-500 border-blue-500">
-                <Link href={userData?.username ? `/${userData.username}` : '/profile'}>My Profile</Link>
+                <Link href="/profile">My Profile</Link>
               </Button>
               <Button variant="ghost" onClick={handleLogout} className="text-gray-600">
                 Logout
