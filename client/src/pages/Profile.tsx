@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
@@ -17,42 +17,57 @@ interface ProfileProps {
   username?: string;
 }
 
+interface UserData {
+  id: number;
+  username: string;
+  email: string;
+  fullName?: string;
+  emailVerified?: boolean;
+  profileImage?: string;
+}
+
 export default function Profile({ username }: ProfileProps = {}) {
   const [location] = useLocation();
-  const { data: userSession } = useQuery<{ user: { username: string; email: string } }>({
+  
+  // Get current user session
+  const { data: sessionData } = useQuery<{ user: UserData }>({
     queryKey: ['/api/auth/session'],
   });
   
-  // If a username is provided in the URL, fetch that user's profile
-  // Otherwise fetch the current logged-in user's profile
-  const { data: userData } = useQuery({
-    queryKey: username ? [`/api/users/${username}`] : ['/api/user'],
-    enabled: username ? true : !!userSession?.user,
+  // Determine the username to display (from props or current user)
+  const displayUsername = username || sessionData?.user?.username;
+  
+  // Fetch user data based on which profile we're viewing
+  const { data: userData, isLoading: loadingUserData } = useQuery<UserData>({
+    queryKey: displayUsername ? 
+      (displayUsername !== sessionData?.user?.username ? 
+        [`/api/users/${displayUsername}`] : 
+        ['/api/user']
+      ) : ['/api/user'],
+    enabled: !!displayUsername || !!sessionData?.user,
   });
   
-  // Check if this is the user's own profile
-  const isOwnProfile = userSession?.user && userSession.user.username === username;
+  // Determine if this is the user's own profile
+  const isOwnProfile = sessionData?.user && 
+                       userData && 
+                       sessionData.user.username === userData.username;
   
-  // Check if we're accessing this through the dashboard
-  const isDashboardView = location.includes(`/${username}/dashboard`);
-
-  // Never show sidebar on profile view - it should only be shown in dashboard
-  const showSidebar = false;
-  
-  // Get listings for the profile based on whether it's the user's own profile or another user
-  const { data: listings } = useQuery({
-    queryKey: username ? [`/api/users/${username}/listings`] : ['/api/listings'],
-    enabled: true, // Always enabled for public profiles
+  // Get listings for the profile
+  const { data: listings = [] } = useQuery<any[]>({
+    queryKey: displayUsername ? 
+      [`/api/users/${displayUsername}/listings`] : 
+      ['/api/listings'],
+    enabled: !!displayUsername || !!sessionData?.user,
   });
   
   const [isEditing, setIsEditing] = useState(false);
   
-  // Mock profile data (would come from API in real app)
+  // Use API data, falling back to defaults when needed
   const profileData = {
-    name: userData?.fullName || userSession?.user?.username || "Agent Name",
+    name: userData?.fullName || userData?.username || "Agent Name",
     title: "Real Estate Professional",
     phone: "(555) 123-4567",
-    email: userData?.email || userSession?.user?.email || "agent@example.com",
+    email: userData?.email || "agent@example.com",
     location: "New York, NY",
     bio: "Licensed real estate agent with over 5 years of experience in luxury properties and new developments. I specialize in helping clients find their dream homes in the most desirable neighborhoods.",
     specialties: ["Luxury Homes", "New Construction", "Investment Properties"],

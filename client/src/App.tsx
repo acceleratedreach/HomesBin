@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Switch, Route, useLocation, useRoute, Router, useParams } from "wouter";
+import { useEffect } from "react";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -32,277 +32,84 @@ interface SessionData {
   };
 }
 
-function AuthenticatedRoutes({ isAuthenticated, currentUser, isLoading = false }: { isAuthenticated: boolean, currentUser: any, isLoading?: boolean }) {
-  const [location, setLocation] = useLocation();
+// Routes that are accessible without authentication
+const PUBLIC_ROUTES = [
+  "/", 
+  "/login", 
+  "/register", 
+  "/verify-email", 
+  "/reset-password", 
+  "/forgot-password"
+];
 
-  // Define array of public routes that don't require authentication
-  const publicRoutes = ["/", "/login", "/register", "/verify-email", "/reset-password", "/forgot-password"];
-  // Make sure /dashboard is not treated as a valid route
+function AppRoutes() {
+  const [location, setLocation] = useLocation();
   
-  // Public profile routes are allowed without auth
-  const profileMatch = location.match(/^\/([^\/]+)$/); // Matches /username (profiles)
-  const isPublicProfileRoute = profileMatch !== null;
-  
-  const isPublicRoute = publicRoutes.includes(location) || location === "/" || isPublicProfileRoute;
-  
-  // Check if this is a user's dashboard or feature route
-  const routeMatch = location.match(/^\/([^\/]+)\/(.+)/); // Matches /username/anything
-  const isUserFeatureRoute = routeMatch !== null;
-  
-  // If it's a user feature route, extract the username to check ownership
-  const routeUsername = isUserFeatureRoute ? routeMatch[1] : 
-                       isPublicProfileRoute ? profileMatch![1] : null;
-  
-  // For debugging route ownership                     
-  console.log('Auth route debug:', {
-    currentUser: currentUser ? 
-      `${currentUser.username} (${currentUser.id})` : 'undefined',
-    routeUsername,
-    isAuthenticated,
-    isUserFeatureRoute,
-    location
+  // Fetch session data to determine authentication status
+  const { data: sessionData, isLoading: sessionLoading } = useQuery<SessionData>({
+    queryKey: ['/api/auth/session'],
+    retry: false,
+    staleTime: 1000 * 60 * 5 // 5 minutes
   });
   
-  const isOwnRoute = isAuthenticated && 
-                     routeUsername !== null && 
-                     currentUser && 
-                     'username' in currentUser && 
-                     typeof currentUser.username === 'string' &&
-                     routeUsername === currentUser.username;
+  // Check if user is authenticated based on session data
+  const isAuthenticated = !!sessionData?.user;
   
-  // Check if this is the settings page or profile page (special cases) 
-  const isSettingsPage = isUserFeatureRoute && routeMatch?.[2] === 'settings';
-  const isProfilePage = isPublicProfileRoute;
+  // Fetch user data if authenticated
+  const { data: userData, isLoading: userLoading } = useQuery({
+    queryKey: ['/api/user'],
+    enabled: isAuthenticated,
+    staleTime: 1000 * 60 * 5 // 5 minutes
+  });
   
+  const isLoading = sessionLoading || (isAuthenticated && userLoading);
+  const currentUser = userData || sessionData?.user;
+  
+  // Log auth status for debugging
+  console.log('Auth status:', { 
+    isAuthenticated, 
+    location,
+    username: currentUser?.username || null
+  });
+  
+  // Handle authentication-based redirects
   useEffect(() => {
-    // Don't do anything if loading is still in progress or we're already on login page
-    if (isLoading || location === '/login') return;
+    if (isLoading) return; // Don't redirect while loading
+    
+    // If authenticated and on the root path, redirect to dashboard
+    if (isAuthenticated && currentUser?.username && location === '/') {
+      setLocation('/dashboard');
+      return;
+    }
+    
+    // If not authenticated and trying to access a protected route
+    const isPublicRoute = PUBLIC_ROUTES.includes(location) || 
+                          // Special case for verification links
+                          location.startsWith('/verify-email');
+    
+    if (!isAuthenticated && !isPublicRoute) {
+      setLocation('/login');
+    }
+    
+  }, [isAuthenticated, location, currentUser, isLoading, setLocation]);
   
-    // Extract the feature if we're on a user feature route
-    const featurePath = isUserFeatureRoute ? routeMatch[2] : null;
-    
-    // Special handling for settings page and public profiles
-    const isSettingsAccess = featurePath === 'settings';
-    const isViewingPublicProfile = isPublicProfileRoute && !isUserFeatureRoute;
-    
-    // If authenticated and at root, go to user dashboard
-    if (isAuthenticated && location === '/' && currentUser && currentUser.username) {
-      console.log('Redirecting to user dashboard from root');
-      setLocation(`/${currentUser.username}/dashboard`);
-      return;
-    }
-    
-    // If authenticated and at /dashboard, go to user dashboard
-    if (isAuthenticated && location === '/dashboard' && currentUser && currentUser.username) {
-      console.log('Redirecting to user dashboard from /dashboard');
-      setLocation(`/${currentUser.username}/dashboard`);
-      return;
-    }
-    
-    // Determine if user is trying to access someone else's dashboard
-    const isAccessingOtherUserDashboard = isUserFeatureRoute && 
-                                         isAuthenticated && 
-                                         !isOwnRoute && 
-                                         !isSettingsAccess;
-    
-    // Allow settings access if authenticated, regardless of email verification
-    const canAccessSettings = isSettingsAccess && isAuthenticated && isOwnRoute;
-
-    // Debug access conditions
-    console.log('Access control debug:', {
-      isAuthenticated,
-      isPublicRoute,
-      isUserFeatureRoute,
-      isOwnRoute,
-      isViewingPublicProfile,
-      isAccessingOtherUserDashboard,
-      canAccessSettings
-    });
-    
-    // Special case: If we're authenticated and accessing route that matches username, no redirect
-    if (isAuthenticated && isUserFeatureRoute && 
-        currentUser && currentUser.username && routeUsername === currentUser.username) {
-      console.log('Accessing own route, no redirect needed');
-      return;
-    }
-    
-    // Now handle redirects to login:
-    
-    // 1. User is not authenticated and tries to access a protected route (except settings)
-    if (!isAuthenticated && !isPublicRoute && !canAccessSettings) {
-      console.log('Redirecting to login: not authenticated for protected route');
-      setLocation("/login");
-      return;
-    }
-    
-    // 2. User tries to access a user-specific feature route (/username/...) while not authenticated
-    if (isUserFeatureRoute && !isAuthenticated && !canAccessSettings) {
-      console.log('Redirecting to login: not authenticated for user feature route');
-      setLocation("/login");
-      return;
-    }
-    
-    // 3. User tries to access someone else's dashboard routes (except public profiles)
-    if (isAccessingOtherUserDashboard) {
-      console.log('Redirecting to login: accessing another user\'s dashboard');
-      setLocation("/login");
-      return;
-    }
-  }, [isAuthenticated, location, isPublicRoute, isUserFeatureRoute, isOwnRoute, routeMatch, setLocation, isLoading, currentUser]);
-
-  if (isAuthenticated) {
-    const username = currentUser?.username;
-    
-    // If we're already at a user feature route, don't apply redirects
-    if (isUserFeatureRoute && routeUsername === username) {
-      console.log('Already at the correct user route:', location);
-      
-      return (
-        <Switch>
-          {/* User-specific feature routes */}
-          <Route path="/:username/dashboard">
-            {(params) => <Dashboard username={params.username} />}
-          </Route>
-          
-          <Route path="/:username/settings">
-            {(params) => <Settings />}
-          </Route>
-          
-          <Route path="/:username/listings/new">
-            {(params) => <ListingCreate />}
-          </Route>
-          
-          <Route path="/:username/listings/:id/edit">
-            {(params) => <ListingEdit id={Number(params.id)} />}
-          </Route>
-          
-          <Route path="/:username/listings">
-            {(params) => <Listings />}
-          </Route>
-          
-          <Route path="/:username/email-marketing">
-            {(params) => <EmailMarketing />}
-          </Route>
-          
-          <Route path="/:username/social-content">
-            {(params) => <SocialContent />}
-          </Route>
-          
-          <Route path="/:username/listing-graphics">
-            {(params) => <ListingGraphics />}
-          </Route>
-          
-          <Route path="/:username/lot-maps">
-            {(params) => <LotMaps />}
-          </Route>
-          
-          <Route path="/:username/theme">
-            {(params) => <ThemePage />}
-          </Route>
-          
-          <Route component={NotFound} />
-        </Switch>
-      );
-    }
-    
+  if (isLoading) {
     return (
-      <Switch>
-        {/* Root path redirects to user dashboard */}
-        <Route path="/">
-          {() => {
-            if (username) {
-              setLocation(`/${username}/dashboard`);
-              return <div className="p-4">Redirecting to dashboard...</div>;
-            } else {
-              return <NotFound />;
-            }
-          }}
-        </Route>
-        
-        {/* Redirect /dashboard to user-specific dashboard */}
-        <Route path="/dashboard">
-          {() => {
-            if (username) {
-              setLocation(`/${username}/dashboard`);
-              return <div className="p-4">Redirecting to dashboard...</div>;
-            } else {
-              return <NotFound />;
-            }
-          }}
-        </Route>
-        
-        {/* User profile routes */}
-        <Route path="/:username">
-          {(params) => <Profile username={params.username} />}
-        </Route>
-        
-        {/* User-specific feature routes */}
-        <Route path="/:username/dashboard">
-          {(params) => <Dashboard username={params.username} />}
-        </Route>
-        
-        <Route path="/:username/settings">
-          {(params) => <Settings />}
-        </Route>
-        
-        <Route path="/:username/listings/new">
-          {(params) => <ListingCreate />}
-        </Route>
-        
-        <Route path="/:username/listings/:id/edit">
-          {(params) => <ListingEdit id={Number(params.id)} />}
-        </Route>
-        
-        <Route path="/:username/listings">
-          {(params) => <Listings />}
-        </Route>
-        
-        <Route path="/:username/email-marketing">
-          {(params) => <EmailMarketing />}
-        </Route>
-        
-        <Route path="/:username/social-content">
-          {(params) => <SocialContent />}
-        </Route>
-        
-        <Route path="/:username/listing-graphics">
-          {(params) => <ListingGraphics />}
-        </Route>
-        
-        <Route path="/:username/lot-maps">
-          {(params) => <LotMaps />}
-        </Route>
-        
-        <Route path="/:username/theme">
-          {(params) => <ThemePage />}
-        </Route>
-        
-        {/* Auth-specific routes */}
-        <Route path="/verify-email">
-          {() => <VerifyEmail />}
-        </Route>
-        
-        <Route path="/reset-password">
-          {() => <ResetPassword />}
-        </Route>
-        
-        <Route path="/forgot-password">
-          {() => <ForgotPassword />}
-        </Route>
-        
-        <Route component={NotFound} />
-      </Switch>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-primary-600 animate-pulse">Loading...</div>
+      </div>
     );
   }
-
+  
   return (
     <Switch>
+      {/* Authentication Routes */}
       <Route path="/login">
-        {() => <Login />}
+        {() => isAuthenticated ? <Dashboard /> : <Login />}
       </Route>
       
       <Route path="/register">
-        {() => <Register />}
+        {() => isAuthenticated ? <Dashboard /> : <Register />}
       </Route>
       
       <Route path="/verify-email">
@@ -317,68 +124,74 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser, isLoading = false }
         {() => <ForgotPassword />}
       </Route>
       
-      {/* Redirect attempts to access /dashboard when not logged in */}
+      {/* Main Dashboard */}
       <Route path="/dashboard">
-        {() => {
-          setLocation("/login");
-          return null;
-        }}
+        {() => isAuthenticated ? <Dashboard /> : <Login />}
       </Route>
       
-      {/* Root path - landing page for unauthenticated users */}
+      {/* User Feature Routes */}
+      <Route path="/settings">
+        {() => isAuthenticated ? <Settings /> : <Login />}
+      </Route>
+      
+      <Route path="/listings/new">
+        {() => isAuthenticated ? <ListingCreate /> : <Login />}
+      </Route>
+      
+      <Route path="/listings/:id/edit">
+        {(params) => isAuthenticated ? <ListingEdit id={Number(params.id)} /> : <Login />}
+      </Route>
+      
+      <Route path="/listings">
+        {() => isAuthenticated ? <Listings /> : <Login />}
+      </Route>
+      
+      <Route path="/email-marketing">
+        {() => isAuthenticated ? <EmailMarketing /> : <Login />}
+      </Route>
+      
+      <Route path="/social-content">
+        {() => isAuthenticated ? <SocialContent /> : <Login />}
+      </Route>
+      
+      <Route path="/listing-graphics">
+        {() => isAuthenticated ? <ListingGraphics /> : <Login />}
+      </Route>
+      
+      <Route path="/lot-maps">
+        {() => isAuthenticated ? <LotMaps /> : <Login />}
+      </Route>
+      
+      <Route path="/theme">
+        {() => isAuthenticated ? <ThemePage /> : <Login />}
+      </Route>
+      
+      {/* Public Profile */}
+      <Route path="/profile/:username">
+        {(params) => <Profile username={params.username} />}
+      </Route>
+      
+      <Route path="/profile">
+        {() => isAuthenticated ? <Profile username={currentUser?.username} /> : <Login />}
+      </Route>
+      
+      {/* Landing Page */}
       <Route path="/">
         {() => <LandingPage />}
       </Route>
       
-      {/* Public profile routes for non-authenticated users */}
-      <Route path="/:username">
-        {(params) => <Profile username={params.username} />}
-      </Route>
-      
+      {/* Fallback for undefined routes */}
       <Route>
-        {() => <Login />}
+        {() => <NotFound />}
       </Route>
     </Switch>
   );
 }
 
 function App() {
-  const { data: sessionData, isLoading: sessionLoading } = useQuery<SessionData>({ 
-    queryKey: ['/api/auth/session'],
-    retry: false,
-    staleTime: 1000 * 60 * 5 // 5 minutes
-  });
-  
-  const isAuthenticated = sessionData && 
-    typeof sessionData === 'object' && 
-    'user' in sessionData && 
-    sessionData.user ? true : false;
-    
-  // For debugging authentication state
-  console.log('Auth status:', isAuthenticated, 
-    sessionData ? 'Session data exists' : 'No session data');
-  
-  const { data: userData, isLoading: userLoading } = useQuery({
-    queryKey: ['/api/user'],
-    enabled: isAuthenticated,
-    staleTime: 1000 * 60 * 5 // 5 minutes
-  });
-  
-  const isLoading = sessionLoading || (isAuthenticated && userLoading);
-
   return (
     <QueryClientProvider client={queryClient}>
-      {isLoading ? (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-primary-600 animate-pulse">Loading...</div>
-        </div>
-      ) : (
-        <AuthenticatedRoutes 
-          isAuthenticated={isAuthenticated}
-          isLoading={isLoading}
-          currentUser={userData || (sessionData?.user as any)} 
-        />
-      )}
+      <AppRoutes />
       <Toaster />
     </QueryClientProvider>
   );
