@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Do not modify .replit, replit.nix, vite.config.ts, package.json, pyproject.toml, or requirements.txt unless explicitly instructed.
+
+Do not alter or set environment variables in the code.
+
+Create and maintain a changelog file with every change and the reason behind it. 
+
+Review the changelog before making any changes to the site.
+
+Do not hardcode sensitive values such as API keys, database URLs, or authentication tokens.
+
+

@@ -23,106 +23,113 @@ import ResetPassword from "@/components/auth/ResetPassword";
 import ForgotPassword from "@/components/auth/ForgotPassword";
 import { useQuery } from "@tanstack/react-query";
 
-// Custom routing component for user profile pages
-function UserProfileRoute(props: any) {
-  const username = props.params?.username;
-  return <Profile username={username} />;
-}
-
-// Custom routing component for user dashboard pages
-function UserDashboardRoute(props: any) {
-  const username = props.params?.username;
-  return <Dashboard username={username} />;
-}
-
 function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated: boolean, currentUser: any }) {
   const [location, setLocation] = useLocation();
 
   // Define array of public routes that don't require authentication
   const publicRoutes = ["/", "/login", "/register", "/verify-email", "/reset-password", "/forgot-password"];
-  // Only public profile routes are allowed without auth, not dashboard routes
-  const isPublicProfileRoute = location.match(/^\/[^\/]+$/) !== null; // Username route like /johndoe
+  
+  // Public profile routes are allowed without auth
+  const profileMatch = location.match(/^\/([^\/]+)$/); // Matches /username (profiles)
+  const isPublicProfileRoute = profileMatch !== null;
+  
   const isPublicRoute = publicRoutes.includes(location) || location === "/" || isPublicProfileRoute;
   
-  // Check if this is a user's dashboard route
-  const dashboardMatch = location.match(/^\/([^\/]+)\/dashboard/);
-  const isDashboardRoute = dashboardMatch !== null;
+  // Check if this is a user's dashboard or feature route
+  const routeMatch = location.match(/^\/([^\/]+)\/(.+)/); // Matches /username/anything
+  const isUserFeatureRoute = routeMatch !== null;
   
-  // If it's a dashboard route, extract the username to check ownership
-  const dashboardUsername = isDashboardRoute ? dashboardMatch[1] : null;
-  const isOwnDashboard = isAuthenticated && dashboardUsername === currentUser?.username;
+  // If it's a user feature route, extract the username to check ownership
+  const routeUsername = isUserFeatureRoute ? routeMatch[1] : 
+                       isPublicProfileRoute ? profileMatch![1] : null;
+  const isOwnRoute = isAuthenticated && routeUsername === currentUser?.username;
   
   useEffect(() => {
     // Redirect to login if:
     // 1. User is not authenticated and tries to access a protected route, or
-    // 2. User tries to access any dashboard route while not authenticated, or
-    // 3. User tries to access someone else's dashboard
+    // 2. User tries to access a user-specific route (/username/...) while not authenticated, or
+    // 3. User tries to access someone else's routes
     if ((!isAuthenticated && !isPublicRoute) || 
-        (isDashboardRoute && !isAuthenticated) ||
-        (isDashboardRoute && isAuthenticated && !isOwnDashboard)) {
+        (isUserFeatureRoute && !isAuthenticated) ||
+        (isUserFeatureRoute && isAuthenticated && !isOwnRoute)) {
       setLocation("/login");
     }
-  }, [isAuthenticated, location, isPublicRoute, isDashboardRoute, isOwnDashboard, setLocation]);
+  }, [isAuthenticated, location, isPublicRoute, isUserFeatureRoute, isOwnRoute, setLocation]);
 
   if (isAuthenticated) {
     const username = currentUser?.username;
     
     return (
       <Switch>
-        {/* Root path needs to be first to avoid wildcard routes catching it */}
+        {/* Root path redirects to user dashboard */}
         <Route path="/">
           {() => {
-            // If we have a username, redirect to the user dashboard
             if (username) {
               setLocation(`/${username}/dashboard`);
             } else {
-              return <Dashboard />;
+              return <NotFound />;
             }
             return null;
           }}
         </Route>
         
-        {/* Standard routes */}
-        <Route path="/dashboard">
-          {() => <Dashboard />}
-        </Route>
-        <Route path="/settings">
-          {() => <Settings />}
-        </Route>
-        <Route path="/profile">
-          {() => <Profile />}
-        </Route>
-        <Route path="/listings/new">
-          {() => <ListingCreate />}
-        </Route>
-        <Route path="/listings/:id/edit">
-          {(params) => <ListingEdit id={Number(params.id)} />}
-        </Route>
-        <Route path="/listings">
-          {() => <Listings />}
-        </Route>
-        <Route path="/email-marketing">
-          {() => <EmailMarketing />}
-        </Route>
-        <Route path="/social-content">
-          {() => <SocialContent />}
-        </Route>
-        <Route path="/listing-graphics">
-          {() => <ListingGraphics />}
-        </Route>
-        <Route path="/lot-maps">
-          {() => <LotMaps />}
-        </Route>
-        <Route path="/theme">
-          {() => <ThemePage />}
+        {/* User profile routes */}
+        <Route path="/:username">
+          {(params) => <Profile username={params.username} />}
         </Route>
         
-        {/* Custom user profile routes */}
+        {/* User-specific feature routes */}
         <Route path="/:username/dashboard">
           {(params) => <Dashboard username={params.username} />}
         </Route>
-        <Route path="/:username">
-          {(params) => <Profile username={params.username} />}
+        
+        <Route path="/:username/settings">
+          {(params) => <Settings />}
+        </Route>
+        
+        <Route path="/:username/listings/new">
+          {(params) => <ListingCreate />}
+        </Route>
+        
+        <Route path="/:username/listings/:id/edit">
+          {(params) => <ListingEdit id={Number(params.id)} />}
+        </Route>
+        
+        <Route path="/:username/listings">
+          {(params) => <Listings />}
+        </Route>
+        
+        <Route path="/:username/email-marketing">
+          {(params) => <EmailMarketing />}
+        </Route>
+        
+        <Route path="/:username/social-content">
+          {(params) => <SocialContent />}
+        </Route>
+        
+        <Route path="/:username/listing-graphics">
+          {(params) => <ListingGraphics />}
+        </Route>
+        
+        <Route path="/:username/lot-maps">
+          {(params) => <LotMaps />}
+        </Route>
+        
+        <Route path="/:username/theme">
+          {(params) => <ThemePage />}
+        </Route>
+        
+        {/* Auth-specific routes */}
+        <Route path="/verify-email">
+          {() => <VerifyEmail />}
+        </Route>
+        
+        <Route path="/reset-password">
+          {() => <ResetPassword />}
+        </Route>
+        
+        <Route path="/forgot-password">
+          {() => <ForgotPassword />}
         </Route>
         
         <Route component={NotFound} />
@@ -135,20 +142,24 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
       <Route path="/login">
         {() => <Login />}
       </Route>
+      
       <Route path="/register">
         {() => <Register />}
       </Route>
+      
       <Route path="/verify-email">
         {() => <VerifyEmail />}
       </Route>
+      
       <Route path="/reset-password">
         {() => <ResetPassword />}
       </Route>
+      
       <Route path="/forgot-password">
         {() => <ForgotPassword />}
       </Route>
       
-      {/* Root path must be defined before /:username to avoid being caught by the wildcard */}
+      {/* Root path - landing page for unauthenticated users */}
       <Route path="/">
         {() => <LandingPage />}
       </Route>
