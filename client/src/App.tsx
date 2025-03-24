@@ -317,10 +317,16 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser, isLoading = false }
         {() => <ForgotPassword />}
       </Route>
       
-      {/* Redirect attempts to access /dashboard when not logged in */}
+      {/* Route for /dashboard - redirects to user-specific dashboard if logged in */}
       <Route path="/dashboard">
         {() => {
-          setLocation("/login");
+          if (isAuthenticated && currentUser?.username) {
+            console.log('Redirecting from /dashboard to user-specific dashboard');
+            setLocation(`/${currentUser.username}/dashboard`);
+          } else {
+            console.log('Not authenticated, redirecting to login');
+            setLocation("/login");
+          }
           return null;
         }}
       </Route>
@@ -343,10 +349,22 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser, isLoading = false }
 }
 
 function App() {
+  // Check for a "force refresh" flag that might be set by logout
+  useEffect(() => {
+    const justLoggedOut = sessionStorage.getItem('just_logged_out') === 'true';
+    if (justLoggedOut) {
+      // If we've just logged out, reset all queries to force refetching
+      queryClient.resetQueries();
+      // Clear the flag so we don't keep resetting
+      sessionStorage.removeItem('just_logged_out');
+    }
+  }, []);
+  
   const { data: sessionData, isLoading: sessionLoading } = useQuery<SessionData>({ 
     queryKey: ['/api/auth/session'],
     retry: false,
-    staleTime: 1000 * 60 * 5 // 5 minutes
+    staleTime: 1000 * 30, // 30 seconds - reduced to catch auth changes faster
+    refetchOnWindowFocus: true
   });
   
   const isAuthenticated = sessionData && 
@@ -361,7 +379,8 @@ function App() {
   const { data: userData, isLoading: userLoading } = useQuery({
     queryKey: ['/api/user'],
     enabled: isAuthenticated,
-    staleTime: 1000 * 60 * 5 // 5 minutes
+    staleTime: 1000 * 30, // 30 seconds - reduced to catch auth changes faster
+    refetchOnWindowFocus: true
   });
   
   const isLoading = sessionLoading || (isAuthenticated && userLoading);

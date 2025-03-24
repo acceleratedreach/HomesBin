@@ -20,12 +20,14 @@ export default function LandingPage() {
   // Check if the user is authenticated
   const { data: userSession } = useQuery({
     queryKey: ['/api/auth/session'],
+    refetchOnWindowFocus: true
   });
   
   // Check if user is authenticated but email is not verified
   const { data: userData } = useQuery({
     queryKey: ['/api/user'],
     enabled: !!userSession?.user,
+    refetchOnWindowFocus: true
   });
   
   const isAuthenticated = !!userSession?.user;

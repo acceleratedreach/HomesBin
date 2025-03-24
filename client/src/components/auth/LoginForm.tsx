@@ -39,15 +39,36 @@ export default function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsSubmitting(true);
+      
+      // Clear any existing session data to avoid stale states
+      await queryClient.resetQueries();
+      
       const response = await apiRequest('POST', '/api/auth/login', values);
+      
+      // Immediately refetch session data
       await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
       
-      // Redirect to user-specific dashboard
+      let username = '';
+      
+      // Try to get username from response
       if (response && typeof response === 'object' && 'user' in response && 
           response.user && typeof response.user === 'object' && 
           'username' in response.user && response.user.username) {
-        console.log('Login successful, redirecting to:', `/${response.user.username}/dashboard`);
-        setLocation(`/${response.user.username}/dashboard`);
+        username = response.user.username;
+      } 
+      
+      // If we have a username, redirect
+      if (username) {
+        console.log('Login successful, redirecting to:', `/${username}/dashboard`);
+        toast({
+          title: "Login successful",
+          description: "Welcome back to HomesBin!",
+        });
+        
+        // Need a slight delay to make sure session is properly recognized
+        setTimeout(() => {
+          setLocation(`/${username}/dashboard`);
+        }, 100);
       } else {
         // Fallback - query for session data directly
         try {
@@ -58,8 +79,19 @@ export default function LoginForm() {
           if (sessionData && typeof sessionData === 'object' && 'user' in sessionData && 
               sessionData.user && typeof sessionData.user === 'object' && 
               'username' in sessionData.user && sessionData.user.username) {
-            console.log('Login successful (from session), redirecting to:', `/${sessionData.user.username}/dashboard`);
-            setLocation(`/${sessionData.user.username}/dashboard`);
+            
+            username = sessionData.user.username;
+            console.log('Login successful (from session), redirecting to:', `/${username}/dashboard`);
+            
+            toast({
+              title: "Login successful",
+              description: "Welcome back to HomesBin!",
+            });
+            
+            // Need a slight delay to make sure session is properly recognized
+            setTimeout(() => {
+              setLocation(`/${username}/dashboard`);
+            }, 100);
           } else {
             console.error('Login issue: Session data missing username', sessionData);
             toast({
@@ -77,12 +109,8 @@ export default function LoginForm() {
           });
         }
       }
-      
-      toast({
-        title: "Login successful",
-        description: "Welcome back to HomesBin!",
-      });
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Login failed",
         description: error.message || "Invalid username or password. Please try again.",
