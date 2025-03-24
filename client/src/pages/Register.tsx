@@ -4,27 +4,30 @@ import { useLocation } from "wouter";
 import Header from "@/components/layout/Header";
 import RegisterForm from "@/components/auth/RegisterForm";
 
+interface UserData {
+  id: number;
+  username: string;
+  email: string;
+  emailVerified?: boolean;
+}
+
+interface SessionData {
+  user: UserData;
+}
+
 export default function Register() {
   const [, setLocation] = useLocation();
   
-  const { data: userSession, isLoading } = useQuery({
+  const { data: sessionData } = useQuery<SessionData>({
     queryKey: ['/api/auth/session'],
   });
   
-  // Redirect to user-specific dashboard if already logged in
+  // Redirect to dashboard if already logged in
   useEffect(() => {
-    if (!isLoading && userSession?.user?.username) {
-      setLocation(`/${userSession.user.username}/dashboard`);
+    if (sessionData?.user) {
+      setLocation('/dashboard');
     }
-  }, [userSession, isLoading, setLocation]);
-  
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
-  }
+  }, [sessionData, setLocation]);
   
   return (
     <div className="min-h-screen flex flex-col">

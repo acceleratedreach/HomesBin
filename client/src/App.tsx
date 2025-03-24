@@ -62,7 +62,7 @@ function AppRoutes() {
     staleTime: 1000 * 60 * 5 // 5 minutes
   });
   
-  const isLoading = sessionLoading || (isAuthenticated && userLoading);
+  // Simplify by not tracking loading state
   const currentUser = userData || sessionData?.user;
   
   // Log auth status for debugging
@@ -74,8 +74,6 @@ function AppRoutes() {
   
   // Handle authentication-based redirects
   useEffect(() => {
-    if (isLoading) return; // Don't redirect while loading
-    
     // If authenticated and on the root path, redirect to dashboard
     if (isAuthenticated && currentUser?.username && location === '/') {
       setLocation('/dashboard');
@@ -91,15 +89,7 @@ function AppRoutes() {
       setLocation('/login');
     }
     
-  }, [isAuthenticated, location, currentUser, isLoading, setLocation]);
-  
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-primary-600 animate-pulse">Loading...</div>
-      </div>
-    );
-  }
+  }, [isAuthenticated, location, currentUser, setLocation]);
   
   return (
     <Switch>

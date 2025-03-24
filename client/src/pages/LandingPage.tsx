@@ -17,18 +17,29 @@ import {
 } from "lucide-react";
 
 export default function LandingPage() {
+  interface UserData {
+    id: number;
+    username: string;
+    email: string;
+    emailVerified?: boolean;
+  }
+
+  interface SessionData {
+    user: UserData;
+  }
+  
   // Check if the user is authenticated
-  const { data: userSession } = useQuery({
+  const { data: sessionData } = useQuery<SessionData>({
     queryKey: ['/api/auth/session'],
   });
   
   // Check if user is authenticated but email is not verified
   const { data: userData } = useQuery({
     queryKey: ['/api/user'],
-    enabled: !!userSession?.user,
+    enabled: !!sessionData?.user,
   });
   
-  const isAuthenticated = !!userSession?.user;
+  const isAuthenticated = !!sessionData?.user;
   const emailVerified = userData?.emailVerified;
   const showVerificationBanner = isAuthenticated && emailVerified === false;
   

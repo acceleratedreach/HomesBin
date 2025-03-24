@@ -18,24 +18,16 @@ interface SessionData {
 export default function Login() {
   const [, setLocation] = useLocation();
   
-  const { data: sessionData, isLoading } = useQuery<SessionData>({
+  const { data: sessionData } = useQuery<SessionData>({
     queryKey: ['/api/auth/session'],
   });
   
   // Redirect to dashboard if already logged in
   useEffect(() => {
-    if (!isLoading && sessionData?.user) {
+    if (sessionData?.user) {
       setLocation('/dashboard');
     }
-  }, [sessionData, isLoading, setLocation]);
-  
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
-  }
+  }, [sessionData, setLocation]);
   
   return (
     <div className="min-h-screen flex flex-col">
