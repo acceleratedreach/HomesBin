@@ -22,10 +22,11 @@ export default function Register() {
     queryKey: ['/api/auth/session'],
   });
   
-  // Redirect to dashboard if already logged in
+  // Redirect to user's dashboard if already logged in
   useEffect(() => {
     if (sessionData?.user) {
-      setLocation('/dashboard');
+      const username = sessionData.user.username;
+      setLocation(`/${username}/dashboard`);
     }
   }, [sessionData, setLocation]);
   

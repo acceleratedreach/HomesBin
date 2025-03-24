@@ -115,43 +115,73 @@ function AppRoutes() {
       </Route>
       
       {/* Main Dashboard */}
+      <Route path="/:username/dashboard">
+        {() => isAuthenticated ? <Dashboard /> : <Login />}
+      </Route>
       <Route path="/dashboard">
         {() => isAuthenticated ? <Dashboard /> : <Login />}
       </Route>
       
       {/* User Feature Routes */}
+      <Route path="/:username/settings">
+        {() => isAuthenticated ? <Settings /> : <Login />}
+      </Route>
       <Route path="/settings">
         {() => isAuthenticated ? <Settings /> : <Login />}
       </Route>
       
+      <Route path="/:username/listings/new">
+        {() => isAuthenticated ? <ListingCreate /> : <Login />}
+      </Route>
       <Route path="/listings/new">
         {() => isAuthenticated ? <ListingCreate /> : <Login />}
       </Route>
       
+      <Route path="/:username/listings/:id/edit">
+        {(params) => isAuthenticated ? <ListingEdit id={Number(params.id)} /> : <Login />}
+      </Route>
       <Route path="/listings/:id/edit">
         {(params) => isAuthenticated ? <ListingEdit id={Number(params.id)} /> : <Login />}
       </Route>
       
+      <Route path="/:username/listings">
+        {() => isAuthenticated ? <Listings /> : <Login />}
+      </Route>
       <Route path="/listings">
         {() => isAuthenticated ? <Listings /> : <Login />}
       </Route>
       
+      <Route path="/:username/email-marketing">
+        {() => isAuthenticated ? <EmailMarketing /> : <Login />}
+      </Route>
       <Route path="/email-marketing">
         {() => isAuthenticated ? <EmailMarketing /> : <Login />}
       </Route>
       
+      <Route path="/:username/social-content">
+        {() => isAuthenticated ? <SocialContent /> : <Login />}
+      </Route>
       <Route path="/social-content">
         {() => isAuthenticated ? <SocialContent /> : <Login />}
       </Route>
       
+      <Route path="/:username/listing-graphics">
+        {() => isAuthenticated ? <ListingGraphics /> : <Login />}
+      </Route>
       <Route path="/listing-graphics">
         {() => isAuthenticated ? <ListingGraphics /> : <Login />}
       </Route>
       
+      <Route path="/:username/lot-maps">
+        {() => isAuthenticated ? <LotMaps /> : <Login />}
+      </Route>
       <Route path="/lot-maps">
         {() => isAuthenticated ? <LotMaps /> : <Login />}
       </Route>
       
+      <Route path="/:username/theme">
+        {() => isAuthenticated ? <ThemePage /> : <Login />}
+      </Route>
       <Route path="/theme">
         {() => isAuthenticated ? <ThemePage /> : <Login />}
       </Route>

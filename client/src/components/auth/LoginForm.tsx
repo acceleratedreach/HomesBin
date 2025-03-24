@@ -48,8 +48,11 @@ export default function LoginForm() {
       
       console.log('Login successful, redirecting to dashboard');
       
-      // Redirect to the dashboard
-      setLocation('/dashboard');
+      // Get user data after login
+      const userData = await apiRequest('GET', '/api/user');
+      
+      // Redirect to the user's dashboard
+      setLocation(`/${userData.username}/dashboard`);
       
       // Display success message
       toast({
