@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function VerifyEmail() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Verifying your email...');
 
@@ -25,6 +27,8 @@ export default function VerifyEmail() {
           return;
         }
 
+        console.log('Verifying email with token:', token);
+
         // Call the API to verify the email
         const response = await apiRequest(
           'GET',
@@ -34,6 +38,11 @@ export default function VerifyEmail() {
         if (response.ok) {
           setStatus('success');
           setMessage('Your email has been successfully verified!');
+          
+          // Refresh user data to update emailVerified status
+          queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
+          
           toast({
             title: 'Email verified',
             description: 'Your email has been successfully verified.',
@@ -62,7 +71,7 @@ export default function VerifyEmail() {
     };
 
     verifyEmail();
-  }, [toast]);
+  }, [toast, queryClient]);
 
   return (
     <div className="flex justify-center items-center min-h-[70vh]">
