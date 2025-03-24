@@ -37,6 +37,7 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
 
   // Define array of public routes that don't require authentication
   const publicRoutes = ["/", "/login", "/register", "/verify-email", "/reset-password", "/forgot-password"];
+  // Make sure /dashboard is not treated as a valid route
   
   // Public profile routes are allowed without auth
   const profileMatch = location.match(/^\/([^\/]+)$/); // Matches /username (profiles)
@@ -93,6 +94,18 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
       <Switch>
         {/* Root path redirects to user dashboard */}
         <Route path="/">
+          {() => {
+            if (username) {
+              setLocation(`/${username}/dashboard`);
+            } else {
+              return <NotFound />;
+            }
+            return null;
+          }}
+        </Route>
+        
+        {/* Redirect /dashboard to user-specific dashboard */}
+        <Route path="/dashboard">
           {() => {
             if (username) {
               setLocation(`/${username}/dashboard`);
@@ -187,6 +200,14 @@ function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated
       
       <Route path="/forgot-password">
         {() => <ForgotPassword />}
+      </Route>
+      
+      {/* Redirect attempts to access /dashboard when not logged in */}
+      <Route path="/dashboard">
+        {() => {
+          setLocation("/login");
+          return null;
+        }}
       </Route>
       
       {/* Root path - landing page for unauthenticated users */}

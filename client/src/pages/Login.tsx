@@ -11,10 +11,10 @@ export default function Login() {
     queryKey: ['/api/auth/session'],
   });
   
-  // Redirect to dashboard if already logged in
+  // Redirect to user-specific dashboard if already logged in
   useEffect(() => {
-    if (!isLoading && userSession?.user) {
-      setLocation('/dashboard');
+    if (!isLoading && userSession?.user?.username) {
+      setLocation(`/${userSession.user.username}/dashboard`);
     }
   }, [userSession, isLoading, setLocation]);
   

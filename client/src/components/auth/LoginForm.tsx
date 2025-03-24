@@ -39,9 +39,29 @@ export default function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsSubmitting(true);
-      await apiRequest('POST', '/api/auth/login', values);
+      const response = await apiRequest('POST', '/api/auth/login', values);
       await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
-      setLocation('/dashboard');
+      
+      // Redirect to user-specific dashboard
+      if (response && response.user && response.user.username) {
+        setLocation(`/${response.user.username}/dashboard`);
+      } else {
+        // Fallback - query for session data directly
+        const sessionData = await queryClient.fetchQuery({ 
+          queryKey: ['/api/auth/session']
+        });
+        
+        if (sessionData && sessionData.user && sessionData.user.username) {
+          setLocation(`/${sessionData.user.username}/dashboard`);
+        } else {
+          toast({
+            title: "Login issue",
+            description: "Logged in successfully but couldn't determine username.",
+            variant: "destructive",
+          });
+        }
+      }
+      
       toast({
         title: "Login successful",
         description: "Welcome back to HomesBin!",

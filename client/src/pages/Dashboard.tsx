@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
@@ -15,8 +15,6 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ username }: DashboardProps = {}) {
-  const [location, setLocation] = useLocation();
-  
   const { data: userSession } = useQuery<{ user: { username: string } }>({
     queryKey: ['/api/auth/session'],
   });
