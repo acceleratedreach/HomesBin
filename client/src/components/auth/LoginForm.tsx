@@ -18,6 +18,14 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 
+// Define the user data interface
+interface UserData {
+  id: number;
+  username: string;
+  email: string;
+  emailVerified?: boolean;
+}
+
 const formSchema = z.object({
   username: z.string().min(1, "Username or email is required"),
   password: z.string().min(1, "Password is required"),
@@ -49,17 +57,19 @@ export default function LoginForm() {
       console.log('Login successful, redirecting to dashboard');
       
       // Get user data after login
-      const userData = await apiRequest('GET', '/api/user') as { 
-        id: number; 
-        username: string; 
-        email: string;
-        emailVerified?: boolean;
-      };
+      const userData = await apiRequest('GET', '/api/user') as unknown as UserData;
       
-      // Redirect to the user's dashboard
+      // Redirect based on email verification status
       if (userData && userData.username) {
         console.log('Username available:', userData.username);
-        setLocation(`/${userData.username}/dashboard`);
+        // Check if email is verified
+        if (userData.emailVerified) {
+          // Email is verified, go to dashboard
+          setLocation(`/${userData.username}/dashboard`);
+        } else {
+          // Email not verified, go to settings page
+          setLocation(`/${userData.username}/settings`);
+        }
       } else {
         console.error('Username not available in user data:', userData);
         // Fallback to standard dashboard route

@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
-import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
 import EmailVerification from "@/components/settings/EmailVerification";
 import ProfileForm from "@/components/settings/ProfileForm";
 import PasswordForm from "@/components/settings/PasswordForm";
@@ -11,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 export default function Settings() {
-  const { data: userSession } = useQuery({
+  const { data: userSession } = useQuery<{ user: any }>({
     queryKey: ['/api/auth/session'],
   });
 
@@ -24,8 +23,6 @@ export default function Settings() {
         
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 md:px-8">
-            <EmailVerificationAlert />
-            
             <div className="space-y-8">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Account Settings</h2>
