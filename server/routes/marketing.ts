@@ -1,16 +1,8 @@
 import { Express, Request, Response } from 'express';
 import { IStorage } from '../storage';
 import { z } from 'zod';
-import { MailService } from '@sendgrid/mail';
 import { EmailTemplate, Listing } from '@shared/schema';
-
-// Initialize SendGrid
-const mailService = new MailService();
-if (process.env.SENDGRID_API_KEY) {
-  mailService.setApiKey(process.env.SENDGRID_API_KEY);
-} else {
-  console.error('Warning: SENDGRID_API_KEY environment variable is not set');
-}
+import { marketingEmailService } from '../services/marketingEmailService';
 
 // Define marketing email parameters interface
 interface MarketingEmailParams {
@@ -21,97 +13,21 @@ interface MarketingEmailParams {
   unsubscribeLink?: string;
 }
 
-// Helper function to process a template with listing data
-const processTemplate = (template: EmailTemplate, listing?: Listing) => {
-  let subject = template.subject;
-  let content = template.content;
-
-  if (listing) {
-    // Replace listing properties in template
-    const replacements: Record<string, string> = {
-      '{{listing.title}}': listing.title,
-      '{{listing.address}}': listing.address,
-      '{{listing.city}}': listing.city,
-      '{{listing.state}}': listing.state,
-      '{{listing.zipCode}}': listing.zipCode,
-      '{{listing.price}}': `$${listing.price.toLocaleString()}`,
-      '{{listing.description}}': listing.description || '',
-      '{{listing.status}}': listing.status || 'Available',
-    };
-
-    // Optional properties
-    if (listing.bedrooms) {
-      replacements['{{listing.bedrooms}}'] = listing.bedrooms.toString();
-    }
-    if (listing.bathrooms) {
-      replacements['{{listing.bathrooms}}'] = listing.bathrooms.toString();
-    }
-    if (listing.squareFeet) {
-      replacements['{{listing.squareFeet}}'] = listing.squareFeet.toString();
-    }
-    if (listing.propertyType) {
-      replacements['{{listing.propertyType}}'] = listing.propertyType;
-    }
-    if (listing.yearBuilt) {
-      replacements['{{listing.yearBuilt}}'] = listing.yearBuilt.toString();
-    }
-
-    // Apply replacements
-    Object.entries(replacements).forEach(([key, value]) => {
-      subject = subject.replace(new RegExp(key, 'g'), value);
-      content = content.replace(new RegExp(key, 'g'), value);
-    });
-  }
-
-  return {
-    subject,
-    content,
-    html: content // Content is already HTML
-  };
-};
-
 // Helper function to send marketing emails
 const sendMarketingEmail = async (params: MarketingEmailParams, template: EmailTemplate, listing?: Listing): Promise<boolean> => {
-  if (!process.env.SENDGRID_API_KEY) {
-    console.error('Error: SENDGRID_API_KEY is not set');
-    return false;
-  }
-
-  try {
-    // Process template with listing data if available
-    const { subject, content, html } = processTemplate(template, listing);
-
-    // Prepare footer with unsubscribe link if provided
-    let footer = '';
-    if (params.unsubscribeLink) {
-      footer = `<div style="margin-top: 30px; padding-top: 10px; border-top: 1px solid #eee; font-size: 12px; color: #666;">
-        <p>If you'd prefer not to receive these emails, <a href="${params.unsubscribeLink}">click here to unsubscribe</a>.</p>
-      </div>`;
-    }
-
-    // Default from name if not provided
-    const fromName = params.fromName || 'HomesBin Properties';
-
-    // Send to each recipient individually (with BCC for privacy)
-    const sendPromises = params.recipients.map(recipient => {
-      return mailService.send({
-        to: recipient,
-        from: {
-          email: 'marketing@homesbin.com',
-          name: fromName
-        },
-        subject,
-        text: content.replace(/<[^>]*>/g, ''), // Strip HTML for plain text
-        html: html + footer
-      });
-    });
-
-    await Promise.all(sendPromises);
-    return true;
-  } catch (error) {
-    console.error('SendGrid marketing email error:', error);
-    return false;
-  }
+  // Process template with listing data if available
+  const { subject, text, html } = marketingEmailService.processTemplate(template, listing);
+  
+  // Send the email using the marketing email service
+  return await marketingEmailService.sendMarketingEmail({
+    subject,
+    text,
+    html,
+    recipients: params.recipients,
+    fromName: params.fromName,
+    listingData: listing,
+    unsubscribeLink: params.unsubscribeLink
+  });
 };
 
 export function registerMarketingRoutes(app: Express, storage: IStorage) {
