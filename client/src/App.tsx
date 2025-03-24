@@ -206,6 +206,23 @@ function AppRoutes() {
         {() => <LandingPage />}
       </Route>
       
+      {/* Custom profile route that matches /:username but doesn't interfere with other routes */}
+      <Route path="/:username">
+        {(params) => {
+          // Skip this route handler if the username matches any known route
+          const knownRoutes = ['login', 'register', 'verify-email', 'reset-password', 
+                              'forgot-password', 'dashboard', 'settings', 'listings',
+                              'email-marketing', 'social-content', 'listing-graphics',
+                              'lot-maps', 'theme', 'profile'];
+          
+          if (knownRoutes.includes(params.username)) {
+            return <NotFound />;
+          }
+          
+          return <Profile username={params.username} />;
+        }}
+      </Route>
+      
       {/* Fallback for undefined routes */}
       <Route>
         {() => <NotFound />}
