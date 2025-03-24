@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
@@ -6,11 +5,9 @@ import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { User, Mail, Phone, MapPin, Award, Calendar, Building, Edit, Upload } from "lucide-react";
+import { User, Mail, Phone, MapPin, Award, Calendar, Building } from "lucide-react";
 import PropertyCard from "@/components/dashboard/PropertyCard";
+import { Link } from "wouter";
 
 interface ProfileProps {
   username?: string;
