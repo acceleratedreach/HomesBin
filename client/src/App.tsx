@@ -35,11 +35,17 @@ function UserDashboardRoute(props: any) {
 function AuthenticatedRoutes({ isAuthenticated, currentUser }: { isAuthenticated: boolean, currentUser: any }) {
   const [location, setLocation] = useLocation();
 
+  // Define array of public routes that don't require authentication
+  const publicRoutes = ["/", "/login", "/register"];
+  const isPublicRoute = publicRoutes.includes(location) || location === "/" || 
+                       location.match(/^\/[^\/]+$/) !== null; // Username route like /johndoe
+  
   useEffect(() => {
-    if (!isAuthenticated && !location.startsWith("/login") && !location.startsWith("/register")) {
+    // Only redirect to login if trying to access protected routes
+    if (!isAuthenticated && !isPublicRoute) {
       setLocation("/login");
     }
-  }, [isAuthenticated, location, setLocation]);
+  }, [isAuthenticated, location, isPublicRoute, setLocation]);
 
   if (isAuthenticated) {
     const username = currentUser?.username;
