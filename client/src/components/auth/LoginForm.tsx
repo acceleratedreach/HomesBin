@@ -56,8 +56,13 @@ export default function LoginForm() {
       
       console.log('Login successful, redirecting to dashboard');
       
+      // Wait a bit for the session to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Get user data after login
-      const userData = await apiRequest('GET', '/api/user') as unknown as UserData;
+      const response = await apiRequest('GET', '/api/user');
+      const userData = await response.json() as UserData;
+      console.log('User data response:', userData);
       
       // Redirect based on email verification status
       if (userData && userData.username) {
@@ -121,10 +126,8 @@ export default function LoginForm() {
                 <FormItem>
                   <div className="flex items-center justify-between">
                     <FormLabel>Password</FormLabel>
-                    <Link href="/forgot-password">
-                      <a className="text-sm text-primary-600 hover:text-primary-500">
-                        Forgot password?
-                      </a>
+                    <Link href="/forgot-password" className="text-sm text-primary-600 hover:text-primary-500">
+                      Forgot password?
                     </Link>
                   </div>
                   <FormControl>
@@ -143,10 +146,8 @@ export default function LoginForm() {
       <CardFooter className="flex justify-center">
         <p className="text-sm text-muted-foreground">
           Don't have an account?{" "}
-          <Link href="/register">
-            <a className="text-primary underline-offset-4 hover:underline">
-              Register
-            </a>
+          <Link href="/register" className="text-primary underline-offset-4 hover:underline">
+            Register
           </Link>
         </p>
       </CardFooter>
