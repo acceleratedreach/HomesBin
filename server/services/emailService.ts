@@ -39,8 +39,10 @@ export class EmailService {
       text: `Welcome to HomesBin! Please verify your email to access all of our tools: ${verificationLink}`,
       html: `
         <h1>Welcome to HomesBin!</h1>
-        <p>Thank you for signing up. Please verify your email address to receive your 5 free tokens by clicking the link below:</p>
-        <p><a href="${verificationLink}">Verify Email Address</a></p>
+        <p>Thank you for signing up. Please verify your email address to access all features.</p>
+        <p><a href="${verificationLink}" data-click-track="off">Verify Email Address</a></p>
+        <p>Or copy and paste this link in your browser:</p>
+        <p style="word-break: break-all;">${verificationLink}</p>
         <p>If you didn't create this account, you can safely ignore this email.</p>
       `
     };
@@ -110,6 +112,14 @@ export class EmailService {
         subject: template.subject,
         text: template.text,
         html: template.html,
+        trackingSettings: {
+          clickTracking: {
+            enable: false
+          },
+          openTracking: {
+            enable: true
+          }
+        }
       };
 
       const response = await mailService.send(msg);

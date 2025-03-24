@@ -89,7 +89,7 @@ export const sendVerificationEmail = async (): Promise<boolean> => {
  */
 export const verifyEmail = async (token: string): Promise<boolean> => {
   try {
-    await apiRequest('GET', `/api/user/verify-email/${token}`, {});
+    await apiRequest('GET', `/api/user/verify-email?token=${token}`, {});
     await queryClient.invalidateQueries({ queryKey: ['/api/user'] });
     return true;
   } catch (error) {
