@@ -47,9 +47,17 @@ export default function RegisterForm() {
     try {
       setIsSubmitting(true);
       const { confirmPassword, ...registerData } = values;
-      await apiRequest('POST', '/api/auth/register', registerData);
+      const response = await apiRequest('POST', '/api/auth/register', registerData);
       await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
-      setLocation('/dashboard');
+      
+      // Redirect to user-specific dashboard
+      if (response && response.user && response.user.username) {
+        setLocation(`/${response.user.username}/dashboard`);
+      } else {
+        // Use the username from the form as fallback
+        setLocation(`/${values.username}/dashboard`);
+      }
+      
       toast({
         title: "Registration successful",
         description: "Welcome to HomesBin! Please check your email to verify your account.",

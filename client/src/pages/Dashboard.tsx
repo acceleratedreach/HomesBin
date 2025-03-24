@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import Header from "@/components/layout/Header";
 import Sidebar from "@/components/layout/Sidebar";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
@@ -9,12 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, BarChart2, UserPlus, Building, Calendar, Mail } from "lucide-react";
+import { useEffect } from "react";
 
 interface DashboardProps {
   username?: string;
 }
 
 export default function Dashboard({ username }: DashboardProps = {}) {
+  const [location, setLocation] = useLocation();
+  
+  // Always call hooks in the same order - QueryHooks first
   const { data: userSession } = useQuery<{ user: { username: string } }>({
     queryKey: ['/api/auth/session'],
   });
@@ -23,19 +27,27 @@ export default function Dashboard({ username }: DashboardProps = {}) {
     queryKey: ['/api/user'],
   });
   
+  const { data: listings, isLoading: loadingListings } = useQuery({
+    queryKey: ['/api/listings'],
+  });
+  
   // If no username provided, use the current user's username
-  const dashboardUsername = username || currentUser?.username;
+  const dashboardUsername = username || (currentUser as any)?.username;
   
   // Ensure we're on the correct user's dashboard
   const isOwnDashboard = userSession?.user && userSession.user.username === dashboardUsername;
+  
+  // Ensure proper URL format
+  useEffect(() => {
+    // If we're at /dashboard instead of /:username/dashboard
+    if (location === '/dashboard' && userSession?.user?.username) {
+      setLocation(`/${userSession.user.username}/dashboard`);
+    }
+  }, [location, userSession, setLocation]);
 
   if (!isOwnDashboard) {
     return null; // This will be handled by the router's authentication logic
   }
-
-  const { data: listings, isLoading: loadingListings } = useQuery({
-    queryKey: ['/api/listings'],
-  });
 
   return (
     <div className="min-h-screen flex flex-col">
