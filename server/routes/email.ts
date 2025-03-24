@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { randomBytes } from 'crypto';
 import { MailService } from '@sendgrid/mail';
 import { User } from '@shared/schema';
+import { EmailService } from '../services/emailService';
 
 // Initialize SendGrid
 const mailService = new MailService();
@@ -303,7 +304,7 @@ export function registerEmailRoutes(app: Express, storage: IStorage) {
         return res.status(404).json({ message: 'User not found' });
       }
 
-      // Send welcome email
+      // Send welcome email using custom template
       const template = getWelcomeEmailTemplate(user);
       const emailSent = await sendEmail(
         user.email,
@@ -311,6 +312,9 @@ export function registerEmailRoutes(app: Express, storage: IStorage) {
         template.text,
         template.html
       );
+      
+      // Or alternatively using the EmailService directly
+      // const emailSent = await EmailService.sendWelcomeEmail(user.email, user.username);
 
       if (emailSent) {
         res.status(200).json({ message: 'Welcome email sent' });

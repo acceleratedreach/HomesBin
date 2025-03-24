@@ -100,10 +100,22 @@ export default function VerifyEmail() {
         </CardContent>
         <CardFooter className="flex justify-center">
           <Button 
-            onClick={() => navigate('/')}
+            onClick={() => {
+              // Get current user session and redirect to the proper dashboard
+              fetch('/api/auth/session')
+                .then(res => res.json())
+                .then(data => {
+                  if (data && data.user && data.user.username) {
+                    navigate(`/${data.user.username}/dashboard`);
+                  } else {
+                    navigate('/');
+                  }
+                })
+                .catch(() => navigate('/'));
+            }}
             variant="default"
           >
-            Back to Home
+            {status === 'success' ? 'Go to Dashboard' : 'Back to Home'}
           </Button>
         </CardFooter>
       </Card>
