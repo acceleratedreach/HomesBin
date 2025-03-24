@@ -16,6 +16,9 @@ import session from "express-session";
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
 import MemoryStore from "memorystore";
+import { registerEmailRoutes } from "./routes/email";
+import { registerMarketingRoutes } from "./routes/marketing";
+import { EmailService } from "./services/emailService";
 
 const SessionStore = MemoryStore(session);
 
@@ -55,8 +58,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return done(null, false, { message: "Incorrect username or email" });
         }
 
-        // Check password - in a real app this would be hashed
-        if (user.password !== password) {
+        // Check password using bcrypt
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
           return done(null, false, { message: "Incorrect password" });
         }
 
@@ -104,8 +108,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Email already exists" });
       }
 
-      // Create new user (in a real app, we would hash the password here)
-      const user = await storage.createUser(userData);
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(userData.password, salt);
+
+      // Create new user with hashed password
+      const user = await storage.createUser({
+        ...userData,
+        password: hashedPassword
+      });
+      
+      // Generate verification token
+      const verificationToken = await storage.generateVerificationToken(user.id);
+      
+      // Send verification email
+      try {
+        await EmailService.sendVerificationEmail(user.email, verificationToken);
+        console.log(`Verification email sent to: ${user.email}`);
+      } catch (emailError) {
+        console.error("Failed to send verification email:", emailError);
+        // We'll continue even if email sending fails
+      }
       
       // Log the user in
       req.login(user, (err) => {
@@ -126,6 +149,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid input data", errors: error.errors });
       }
+      console.error("Registration error:", error);
       res.status(500).json({ message: "Server error" });
     }
   });
@@ -233,16 +257,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Current password and new password are required" });
       }
       
-      // Verify current password
-      if (user.password !== currentPassword) {
+      // Verify current password using bcrypt
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) {
         return res.status(400).json({ message: "Current password is incorrect" });
       }
       
+      // Hash the new password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+      
       // Update password
-      await storage.updateUser(user.id, { password: newPassword });
+      await storage.updateUser(user.id, { password: hashedPassword });
       
       res.json({ message: "Password updated successfully" });
     } catch (error) {
+      console.error("Password update error:", error);
       res.status(500).json({ message: "Server error" });
     }
   });
@@ -258,10 +288,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate or regenerate token
       const token = await storage.generateVerificationToken(user.id);
       
-      // In a real app, we would send an email here
+      // Send verification email using SendGrid
+      const success = await EmailService.sendVerificationEmail(user.email, token);
       
-      res.json({ message: "Verification email sent" });
+      if (success) {
+        res.json({ message: "Verification email sent successfully" });
+      } else {
+        res.status(500).json({ message: "Failed to send verification email" });
+      }
     } catch (error) {
+      console.error("Error sending verification email:", error);
       res.status(500).json({ message: "Server error" });
     }
   });
@@ -579,6 +615,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Server error" });
     }
   });
+
+  // Register custom route handlers for email and marketing features
+  registerEmailRoutes(app, storage);
+  registerMarketingRoutes(app, storage);
+
+  // Set up site URL if not set - used in email links
+  if (!process.env.SITE_URL) {
+    process.env.SITE_URL = 'http://localhost:5000';
+    console.log(`Notice: SITE_URL not set, using default: ${process.env.SITE_URL}`);
+  }
 
   const httpServer = createServer(app);
   return httpServer;
