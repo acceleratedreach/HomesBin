@@ -39,36 +39,36 @@ export default function Header({ isAuthenticated }: HeaderProps) {
 
   return (
     <header className="bg-white shadow-sm">
-      <div className="max-w-7xl mx-auto py-3 px-4 sm:px-6 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto py-2 px-4 sm:px-6 flex items-center justify-between">
         <div className="flex items-center">
           <Link href="/">
             <div className="flex items-center cursor-pointer">
-              <div className="bg-primary-600 text-white p-2 rounded-lg mr-2">
-                <Home className="h-6 w-6" />
+              <div className="bg-blue-500 text-white p-1.5 rounded-md mr-2">
+                <Home className="h-5 w-5" />
               </div>
-              <h1 className="text-xl font-bold text-gray-900">HomesBin</h1>
+              <h1 className="text-xl font-semibold text-gray-900">HomesBin</h1>
             </div>
           </Link>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-3">
           {isAuthenticated ? (
             <>
-              <Button asChild variant="default">
+              <Button asChild variant="default" className="bg-blue-500 hover:bg-blue-600 rounded-md">
                 <Link href="/dashboard">Dashboard</Link>
               </Button>
-              <Button asChild variant="ghost">
+              <Button asChild variant="outline" className="text-blue-500 border-blue-500">
                 <Link href="/profile">My Profile</Link>
               </Button>
-              <Button variant="ghost" onClick={handleLogout}>
+              <Button variant="ghost" onClick={handleLogout} className="text-gray-600">
                 Logout
               </Button>
             </>
           ) : (
             <>
-              <Button asChild variant="default">
+              <Button asChild variant="outline" className="text-blue-500 border-blue-500">
                 <Link href="/login">Login</Link>
               </Button>
-              <Button asChild variant="outline">
+              <Button asChild variant="default" className="bg-blue-500 hover:bg-blue-600 rounded-md">
                 <Link href="/register">Register</Link>
               </Button>
             </>
