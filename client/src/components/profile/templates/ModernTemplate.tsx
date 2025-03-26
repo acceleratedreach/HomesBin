@@ -99,7 +99,7 @@ export default function ModernTemplate({
               />
               <div className="text-center md:text-left">
                 <h1 className="text-3xl font-bold mb-1">{userData.fullName || userData.username}</h1>
-                <p className="text-white/80">Real Estate Professional</p>
+                <p className="text-white/80">{userData.title || userData.fullName || userData.username || "Real Estate Professional"}</p>
                 {userData.location && (
                   <div className="flex items-center justify-center md:justify-start mt-2">
                     <MapPin className="h-4 w-4 mr-1" />

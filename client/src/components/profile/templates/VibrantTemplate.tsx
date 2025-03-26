@@ -206,7 +206,7 @@ export default function VibrantTemplate({
                 className="mb-6"
               />
               <h1 className="text-4xl font-bold mb-2 text-white">{userData.fullName || userData.username}</h1>
-              <p className="text-white text-xl mb-3 opacity-90">Real Estate Professional</p>
+              <p className="text-white text-xl mb-3 opacity-90">{userData.title || userData.fullName || userData.username || "Real Estate Professional"}</p>
               
               {userData.location && (
                 <div className="flex items-center justify-center mb-5 text-white/80">

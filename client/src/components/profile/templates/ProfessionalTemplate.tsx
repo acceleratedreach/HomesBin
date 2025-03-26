@@ -101,7 +101,7 @@ export default function ProfessionalTemplate({
                   <h2 className="text-xl font-bold" style={customStyles.heading}>
                     {userData.fullName || userData.username || "Real Estate Professional"}
                   </h2>
-                  <p style={customStyles.subheading}>{userData.title || "Real Estate Professional"}</p>
+                  <p style={customStyles.subheading}>{userData.title || userData.fullName || userData.username || "Real Estate Professional"}</p>
                 </div>
               </div>
               
