@@ -225,7 +225,7 @@ export default function ProfessionalTemplate({
                     <p style={customStyles.subheading}>
                       {isOwnProfile 
                         ? "You haven't added any listings yet" 
-                        : `${userData.fullName || userData.username} hasn't added any listings yet`}
+                        : `${userData.fullName || userData.username || "This agent"} hasn't added any listings yet`}
                     </p>
                     {isOwnProfile && (
                       <Button className="mt-4" style={{ backgroundColor: theme.primaryColor }}>

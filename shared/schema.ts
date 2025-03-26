@@ -49,6 +49,7 @@ export const listings = pgTable("listings", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   status: text("status").default("active"),
+  isPublic: boolean("is_public").default(true),
 });
 
 export const insertListingSchema = createInsertSchema(listings).omit({

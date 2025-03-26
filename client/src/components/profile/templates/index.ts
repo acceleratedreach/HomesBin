@@ -26,6 +26,7 @@ export interface ProfileTemplateProps {
     experience?: string;
     specialties?: string[];
     licenses?: string[];
+    title?: string;
   };
   listings?: Listing[];
   theme: {
