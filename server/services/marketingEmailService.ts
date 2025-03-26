@@ -105,20 +105,20 @@ export class MarketingEmailService {
       '{{property_price}}': listing.price ? `$${listing.price.toLocaleString()}` : '',
       '{{property_bedrooms}}': listing.bedrooms?.toString() || '',
       '{{property_bathrooms}}': listing.bathrooms?.toString() || '',
-      '{{property_sqft}}': (listing.squareFootage || listing.squareFeet || listing.sqft)?.toString() || '',
+      '{{property_sqft}}': ((listing as any).squareFootage || (listing as any).squareFeet || (listing as any).sqft)?.toString() || '',
       '{{property_description}}': listing.description || '',
       '{{property_type}}': listing.propertyType || '',
-      '{{property_url}}': `${process.env.SITE_URL || 'https://homesbin.com'}/listings/${listing.id}`,
+      '{{property_url}}': `https://homesbin.com/listings/${listing.id}`,
       
       // {{listing_*}} format
       '{{listing_address}}': listing.address || '',
       '{{listing_price}}': listing.price ? `$${listing.price.toLocaleString()}` : '',
       '{{listing_bedrooms}}': listing.bedrooms?.toString() || '',
       '{{listing_bathrooms}}': listing.bathrooms?.toString() || '',
-      '{{listing_sqft}}': (listing.squareFootage || listing.squareFeet || listing.sqft)?.toString() || '',
+      '{{listing_sqft}}': ((listing as any).squareFootage || (listing as any).squareFeet || (listing as any).sqft)?.toString() || '',
       '{{listing_description}}': listing.description || '',
       '{{listing_type}}': listing.propertyType || '',
-      '{{listing_url}}': `${process.env.SITE_URL || 'https://homesbin.com'}/listings/${listing.id}`,
+      '{{listing_url}}': `https://homesbin.com/listings/${listing.id}`,
       '{{listing_city}}': listing.city || '',
       '{{listing_state}}': listing.state || '',
       '{{listing_zipCode}}': listing.zipCode || '',
@@ -129,11 +129,11 @@ export class MarketingEmailService {
       '{listing.price}': listing.price ? `$${listing.price.toLocaleString()}` : '',
       '{listing.bedrooms}': listing.bedrooms?.toString() || '',
       '{listing.bathrooms}': listing.bathrooms?.toString() || '',
-      '{listing.sqft}': (listing.squareFootage || listing.squareFeet || listing.sqft)?.toString() || '',
+      '{listing.sqft}': ((listing as any).squareFootage || (listing as any).squareFeet || (listing as any).sqft)?.toString() || '',
       '{listing.description}': listing.description || '',
       '{listing.status}': listing.status || '',
       '{listing.type}': listing.propertyType || '',
-      '{listing.url}': `${process.env.SITE_URL || 'https://homesbin.com'}/listings/${listing.id}`,
+      '{listing.url}': `https://homesbin.com/listings/${listing.id}`,
       '{listing.title}': listing.title || ''
     };
     
@@ -206,9 +206,8 @@ export class MarketingEmailService {
     // Base64 encode email for the URL
     const encodedEmail = Buffer.from(recipientEmail).toString('base64');
     
-    // Generate the URL with validation hash
-    const baseUrl = process.env.SITE_URL || 'https://homesbin.com';
-    return `${baseUrl}/unsubscribe?uid=${userId}&email=${encodedEmail}&hash=${hash}`;
+    // Always use production URL for consistency
+    return `https://homesbin.com/unsubscribe?uid=${userId}&email=${encodedEmail}&hash=${hash}`;
   }
 }
 

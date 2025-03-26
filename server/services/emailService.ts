@@ -18,26 +18,16 @@ console.log('SendGrid API key configured successfully');
 const FROM_EMAIL = 'noreply@homesbin.com';
 const FROM_NAME = 'HomesBin';
 
-// Site URL helper function - handles different environments gracefully
+// Site URL helper function - always use production URL for consistency in emails
 const getSiteUrl = (req?: any): string => {
+  // If SITE_URL is set in environment, use it
   if (process.env.SITE_URL) {
     return process.env.SITE_URL;
   }
   
-  if (req && req.get('host')) {
-    return `${req.protocol}://${req.get('host')}`;
-  }
-  
-  if (process.env.NODE_ENV === 'production') {
-    console.log('Notice: SITE_URL not set, using default: https://homesbin.com');
-    return 'https://homesbin.com';
-  }
-  
-  if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
-    return `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
-  }
-  
-  return 'http://localhost:5000';
+  // Otherwise, always use production URL for email links
+  console.log('Notice: SITE_URL not set, using default: https://homesbin.com');
+  return 'https://homesbin.com';
 };
 
 export interface EmailTemplate {
@@ -182,7 +172,7 @@ export class EmailService {
       '{listing.price}': listing.price ? `$${listing.price.toLocaleString()}` : '',
       '{listing.bedrooms}': listing.bedrooms?.toString() || '',
       '{listing.bathrooms}': listing.bathrooms?.toString() || '',
-      '{listing.sqft}': listing.squareFootage?.toLocaleString() || listing.sqft?.toLocaleString() || '',
+      '{listing.sqft}': ((listing as any).squareFootage || (listing as any).sqft || listing.squareFeet)?.toLocaleString() || '',
       '{listing.description}': listing.description || '',
       '{listing.status}': listing.status || '',
       '{listing.type}': listing.propertyType || '',
