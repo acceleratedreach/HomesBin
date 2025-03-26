@@ -20,7 +20,7 @@ import LotMaps from "@/pages/LotMaps";
 import ThemePage from "@/pages/ThemePage";
 import LotMapEditor from "@/pages/lotmap/LotMapEditor";
 import PublicLotMapViewer from "@/pages/lotmap/PublicLotMapViewer";
-import VerifyEmail from "@/pages/VerifyEmail";
+import VerifyEmail from "@/components/auth/VerifyEmail";
 import ResetPassword from "@/components/auth/ResetPassword";
 import ForgotPassword from "@/components/auth/ForgotPassword";
 import { useQuery } from "@tanstack/react-query";
@@ -81,11 +81,7 @@ function AppRoutes() {
     // Check if trying to access a public route
     const isPublicRoute = PUBLIC_ROUTES.includes(location) || 
                           location.startsWith('/verify-email') ||
-                          location.startsWith('/profile/') ||
-                          // Allow direct /:username routes (agent profiles) to be accessed without login
-                          (location.startsWith('/') && 
-                           location.split('/').length === 2 && 
-                           !PUBLIC_ROUTES.includes(location));
+                          location.startsWith('/profile/');
     
     // If not authenticated and trying to access a protected route
     if (!isAuthenticated && !isPublicRoute) {

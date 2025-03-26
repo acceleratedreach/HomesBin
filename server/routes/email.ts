@@ -4,7 +4,6 @@ import { z } from 'zod';
 import { randomBytes } from 'crypto';
 import { MailService } from '@sendgrid/mail';
 import { User } from '@shared/schema';
-import bcrypt from 'bcryptjs';
 
 // Initialize SendGrid
 const mailService = new MailService();
@@ -17,8 +16,7 @@ if (process.env.SENDGRID_API_KEY) {
 
 // Email templates
 const getVerificationEmailTemplate = (token: string) => {
-  // Always use homesbin.com domain for consistency
-  const verificationUrl = `https://homesbin.com/verify-email?token=${token}`;
+  const verificationUrl = `${process.env.SITE_URL || 'http://localhost:5000'}/verify-email?token=${token}`;
   
   return {
     subject: 'Verify your HomesBin account',
@@ -42,8 +40,7 @@ const getVerificationEmailTemplate = (token: string) => {
 };
 
 const getPasswordResetTemplate = (token: string) => {
-  // Always use homesbin.com domain for consistency
-  const resetUrl = `https://homesbin.com/reset-password?token=${token}`;
+  const resetUrl = `${process.env.SITE_URL || 'http://localhost:5000'}/reset-password?token=${token}`;
   
   return {
     subject: 'Reset your HomesBin password',
@@ -84,8 +81,7 @@ const getWelcomeEmailTemplate = (user: User) => {
         </ul>
         <p>Get started by adding your first property listing!</p>
         <p>
-          <a href="https://homesbin.com/listings/create" 
-            style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
+          <a href="${process.env.SITE_URL || 'http://localhost:5000'}/listings/create" style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
             Create Your First Listing
           </a>
         </p>
@@ -131,17 +127,16 @@ const sendEmail = async (to: string, subject: string, text: string, html: string
 };
 
 // Password reset tokens with expiration
-export const passwordResetTokens = new Map<string, { userId: number, expires: Date }>();
+const passwordResetTokens = new Map<string, { userId: number, expires: Date }>();
 
 // Clean up expired tokens periodically
 setInterval(() => {
   const now = new Date();
-  // Use Array.from to avoid TypeScript iteration issues
-  Array.from(passwordResetTokens.entries()).forEach(([token, { expires }]) => {
+  for (const [token, { expires }] of passwordResetTokens.entries()) {
     if (expires < now) {
       passwordResetTokens.delete(token);
     }
-  });
+  }
 }, 60 * 60 * 1000); // Run every hour
 
 export function registerEmailRoutes(app: Express, storage: IStorage) {
@@ -232,9 +227,6 @@ export function registerEmailRoutes(app: Express, storage: IStorage) {
       expires.setHours(expires.getHours() + 1); // Token valid for 1 hour
       
       passwordResetTokens.set(token, { userId: user.id, expires });
-      
-      // Log token for testing - REMOVE IN PRODUCTION
-      console.log('RESET TOKEN FOR TESTING:', token);
 
       // Send password reset email
       const template = getPasswordResetTemplate(token);
@@ -282,6 +274,7 @@ export function registerEmailRoutes(app: Express, storage: IStorage) {
       }
 
       // Update user password
+      const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash(password, 10);
       
       await storage.updateUser(user.id, { password: hashedPassword });

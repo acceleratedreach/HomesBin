@@ -48,13 +48,12 @@ export default function Profile({ username }: ProfileProps = {}) {
     queryKey: ['/api/auth/session'],
   });
   
-  // Only redirect to login if trying to view your own profile without being logged in
+  // If no username is provided and the user is not logged in, redirect to login
   useEffect(() => {
-    // Only redirect if trying to access /profile with no username and not logged in
-    if (location === "/profile" && !username && !sessionData?.user) {
+    if (!username && !sessionData?.user) {
       navigate('/login');
     }
-  }, [username, sessionData, navigate, location]);
+  }, [username, sessionData, navigate]);
   
   // Determine the username to display (from props or current user)
   const displayUsername = username || sessionData?.user?.username;
