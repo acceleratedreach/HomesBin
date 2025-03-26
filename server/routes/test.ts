@@ -2,6 +2,8 @@ import { Express, Request, Response } from 'express';
 import { IStorage } from '../storage';
 import { randomBytes } from 'crypto';
 import { MailService } from '@sendgrid/mail';
+// Import passwordResetTokens from email routes
+import { passwordResetTokens } from './email';
 
 // Initialize SendGrid
 const mailService = new MailService();
@@ -95,6 +97,64 @@ export function registerTestRoutes(app: Express, storage: IStorage) {
           authenticated: false,
           message: "Not authenticated"
         });
+      }
+    });
+    
+    // Test route to generate a password reset token
+    app.get('/api/test/reset-password/:email', async (req: Request, res: Response) => {
+      try {
+        const email = req.params.email;
+        if (!email || !email.includes('@')) {
+          return res.status(400).json({ message: 'Invalid email address' });
+        }
+        
+        // Find user by email
+        const user = await storage.getUserByEmail(email);
+        if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+        }
+        
+        // Generate reset token
+        const token = randomBytes(32).toString('hex');
+        const expires = new Date();
+        expires.setHours(expires.getHours() + 1); // Token valid for 1 hour
+        
+        // Store token in the same map that the actual reset feature uses
+        passwordResetTokens.set(token, { userId: user.id, expires });
+        
+        const resetUrl = `${process.env.NODE_ENV === 'production' 
+          ? (process.env.SITE_URL || 'https://homesbin.com') 
+          : 'https://' + process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'}/reset-password?token=${token}`;
+        
+        res.json({
+          message: 'Password reset token generated',
+          token,
+          resetUrl,
+          expires
+        });
+      } catch (error) {
+        console.error('Error generating test reset token:', error);
+        res.status(500).json({ message: 'Server error' });
+      }
+    });
+    
+    // Debug route to list all reset tokens (for testing only)
+    app.get('/api/test/reset-tokens', (req: Request, res: Response) => {
+      try {
+        const tokens = Array.from(passwordResetTokens.entries()).map(([token, { userId, expires }]) => ({
+          token: token.substring(0, 8) + '...',  // Show only first 8 chars for security
+          userId,
+          expires,
+          valid: expires > new Date()
+        }));
+        
+        res.json({
+          tokenCount: passwordResetTokens.size,
+          tokens
+        });
+      } catch (error) {
+        console.error('Error listing reset tokens:', error);
+        res.status(500).json({ message: 'Server error' });
       }
     });
     

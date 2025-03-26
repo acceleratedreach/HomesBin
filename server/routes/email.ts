@@ -137,7 +137,7 @@ const sendEmail = async (to: string, subject: string, text: string, html: string
 };
 
 // Password reset tokens with expiration
-const passwordResetTokens = new Map<string, { userId: number, expires: Date }>();
+export const passwordResetTokens = new Map<string, { userId: number, expires: Date }>();
 
 // Clean up expired tokens periodically
 setInterval(() => {
