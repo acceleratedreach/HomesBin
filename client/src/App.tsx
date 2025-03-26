@@ -20,7 +20,7 @@ import LotMaps from "@/pages/LotMaps";
 import ThemePage from "@/pages/ThemePage";
 import LotMapEditor from "@/pages/lotmap/LotMapEditor";
 import PublicLotMapViewer from "@/pages/lotmap/PublicLotMapViewer";
-import VerifyEmail from "@/components/auth/VerifyEmail";
+import VerifyEmail from "@/pages/VerifyEmail";
 import ResetPassword from "@/components/auth/ResetPassword";
 import ForgotPassword from "@/components/auth/ForgotPassword";
 import { useQuery } from "@tanstack/react-query";
