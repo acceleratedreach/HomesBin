@@ -22,6 +22,8 @@ async function throwIfResNotOk(res: Response) {
  */
 function getAuthHeaders(): HeadersInit {
   const token = getToken();
+  console.log('Getting auth headers, token exists:', !!token, token ? `(length: ${token.length})` : '');
+  
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -30,6 +32,9 @@ function getAuthHeaders(): HeadersInit {
   
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+    console.log('Added Authorization header with Bearer token');
+  } else {
+    console.log('No token available, skipping Authorization header');
   }
   
   return headers;
