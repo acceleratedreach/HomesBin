@@ -238,6 +238,9 @@ export function registerEmailRoutes(app: Express, storage: IStorage) {
       expires.setHours(expires.getHours() + 1); // Token valid for 1 hour
       
       passwordResetTokens.set(token, { userId: user.id, expires });
+      
+      // Log token for testing - REMOVE IN PRODUCTION
+      console.log('RESET TOKEN FOR TESTING:', token);
 
       // Send password reset email
       const template = getPasswordResetTemplate(token);
