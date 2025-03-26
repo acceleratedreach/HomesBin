@@ -39,9 +39,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }),
       cookie: {
         secure: process.env.NODE_ENV === "production",
-        sameSite: 'lax',
+        sameSite: 'none', // Changed from 'lax' to 'none' to allow cross-site cookie sharing
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        domain: process.env.NODE_ENV === "production" ? '.homesbin.com' : undefined,
+        domain: process.env.NODE_ENV === "production" ? 'homesbin.com' : undefined, // Removed leading dot
         httpOnly: true,
       },
     })

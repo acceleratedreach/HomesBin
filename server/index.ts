@@ -13,12 +13,27 @@ const app = express();
 const corsOptions = {
   // In production, only allow requests from homesbin.com and its subdomains
   // In development, allow requests from all origins
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://homesbin.com', 'https://*.homesbin.com', /\.homesbin\.com$/] 
-    : true,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, etc)
+    if (!origin) return callback(null, true);
+    
+    // If we're in development, allow all origins
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
+    // In production, check against our whitelist
+    const allowedOrigins = ['https://homesbin.com', 'https://www.homesbin.com'];
+    // Check if the origin matches our allowed list or is a subdomain of homesbin.com
+    if (allowedOrigins.includes(origin) || origin.match(/^https:\/\/[a-zA-Z0-9-]+\.homesbin\.com$/)) {
+      return callback(null, true);
+    }
+    
+    callback(null, false);
+  },
   credentials: true, // Critical for allowing cookies to be sent with cross-origin requests
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 };
 
 app.use(cors(corsOptions));
