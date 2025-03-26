@@ -38,10 +38,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         checkPeriod: 86400000, // prune expired entries every 24h
       }),
       cookie: {
-        secure: process.env.NODE_ENV === "production",
-        sameSite: 'none', // Changed from 'lax' to 'none' to allow cross-site cookie sharing
+        // Always set secure to true in production, false in development
+        secure: false, // Set to false for development to work with http
+        // Set sameSite to lax which is more permissive for cookies
+        sameSite: 'lax', 
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        domain: process.env.NODE_ENV === "production" ? 'homesbin.com' : undefined, // Removed leading dot
+        // Remove domain setting as it's not needed for same-origin requests
+        domain: undefined,
         httpOnly: true,
       },
     })
