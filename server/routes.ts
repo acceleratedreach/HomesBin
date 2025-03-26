@@ -202,7 +202,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       email: user.email,
       emailVerified: user.emailVerified,
       fullName: user.fullName,
-      profileImage: user.profileImage
+      profileImage: user.profileImage,
+      title: user.title,
+      phone: user.phone,
+      location: user.location,
+      experience: user.experience,
+      bio: user.bio,
+      specialties: user.specialties,
+      licenses: user.licenses
     });
   });
 
@@ -210,8 +217,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user: any = req.user;
       
-      // Only allow updating certain fields
-      const allowedFields = ["username", "email", "fullName", "profileImage"];
+      // Allow updating all profile fields
+      const allowedFields = [
+        "username", "email", "fullName", "profileImage", 
+        "title", "phone", "location", "experience", 
+        "bio", "specialties", "licenses"
+      ];
       const updateData: any = {};
       
       for (const field of allowedFields) {
@@ -245,9 +256,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: updatedUser.email,
         emailVerified: updatedUser.emailVerified,
         fullName: updatedUser.fullName,
-        profileImage: updatedUser.profileImage
+        profileImage: updatedUser.profileImage,
+        title: updatedUser.title,
+        phone: updatedUser.phone,
+        location: updatedUser.location,
+        experience: updatedUser.experience,
+        bio: updatedUser.bio,
+        specialties: updatedUser.specialties,
+        licenses: updatedUser.licenses
       });
     } catch (error) {
+      console.error("Error updating user:", error);
       res.status(500).json({ message: "Server error" });
     }
   });

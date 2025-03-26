@@ -111,12 +111,28 @@ export default function Settings() {
   // Save profile data
   const saveProfile = useMutation({
     mutationFn: async (data: Partial<UserData>) => {
-      // This would be a real API call in a production app
-      console.log("Saving profile data:", data);
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      return { success: true };
+      return await fetch('/api/user', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      }).then(res => {
+        if (!res.ok) {
+          throw new Error('Failed to update profile');
+        }
+        return res.json();
+      });
     },
+    onSuccess: () => {
+      // Invalidate user data query to refresh with new data
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      alert('Profile updated successfully!');
+    },
+    onError: (error) => {
+      console.error('Error updating profile:', error);
+      alert('Failed to update profile. Please try again.');
+    }
   });
   
   const handleSubmit = (e: React.FormEvent) => {
