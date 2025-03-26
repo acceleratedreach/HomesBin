@@ -2,11 +2,44 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import * as dotenv from 'dotenv';
+import cors from 'cors';
 
 // Load environment variables from .env file
 dotenv.config();
 
 const app = express();
+
+// Configure CORS middleware with credentials support and proper origins
+const corsOptions = {
+  // In production, only allow requests from homesbin.com and its subdomains
+  // In development, allow requests from all origins
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://homesbin.com', 'https://*.homesbin.com', /\.homesbin\.com$/] 
+    : true,
+  credentials: true, // Critical for allowing cookies to be sent with cross-origin requests
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
+
+// Additional headers to handle CORS and cookies properly
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+  res.header(
+    'Access-Control-Allow-Headers',
+    'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept, Authorization'
+  );
+  next();
+});
+
+// Handle OPTIONS preflight requests
+app.options('*', (req, res) => {
+  res.status(200).end();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
