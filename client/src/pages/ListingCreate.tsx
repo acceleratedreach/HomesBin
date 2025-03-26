@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/layout/Header";
-import Sidebar from "@/components/layout/Sidebar";
+import DashboardSidebar from "@/components/layout/Sidebar";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
 import ListingForm from "@/components/listings/ListingForm";
 
@@ -11,10 +11,10 @@ export default function ListingCreate() {
   
   return (
     <div className="min-h-screen flex flex-col">
-      <Header isAuthenticated={!!userSession?.user} />
+      <Header isAuthenticated={!!userSession} />
       
       <div className="flex-grow flex">
-        <Sidebar />
+        <DashboardSidebar />
         
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 md:px-8">

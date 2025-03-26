@@ -1,87 +1,213 @@
-import { Link, useLocation } from "wouter";
-import { cn } from "@/lib/utils";
+import React, { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { 
   LayoutDashboard, 
-  User, 
-  FileText, 
+  LucideIcon,
+  Settings, 
+  LogOut, 
+  UserCircle,
   Palette, 
+  Home,
+  ListFilter,
   Mail, 
-  MessageSquare, 
   Image, 
-  Map, 
-  Settings 
+  MapPin,
+  FileText
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 
-interface SidebarProps {
-  className?: string;
+interface UserData {
+  username?: string;
+  fullName?: string;
+  profileImage?: string;
 }
 
-export default function Sidebar({ className }: SidebarProps) {
+interface NavLink {
+  label: string;
+  href: string;
+  icon: React.ReactNode;
+  activeMatches?: string[];
+}
+
+export default function DashboardSidebar() {
   const [location] = useLocation();
+  const [open, setOpen] = useState(false);
   
-  const { data: userData } = useQuery<{ username: string; emailVerified: boolean }>({
+  const { data: userData } = useQuery<UserData>({
     queryKey: ['/api/user'],
   });
   
-  const username = userData?.username;
-  const isEmailVerified = userData?.emailVerified || false;
+  const username = userData?.username || '';
+  
+  // Generate user-specific links only when username is available
+  const [mainLinks, setMainLinks] = useState<NavLink[]>([]);
+  const [accountLinks, setAccountLinks] = useState<NavLink[]>([]);
+  
+  useEffect(() => {
+    if (!username) return;
+    
+    setMainLinks([
+      {
+        label: "Dashboard",
+        href: `/${username}/dashboard`,
+        icon: <LayoutDashboard className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+        activeMatches: ['/dashboard']
+      },
+      {
+        label: "Listings",
+        href: `/${username}/listings`,
+        icon: <ListFilter className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+        activeMatches: ['/listings', '/listing-create', '/listing-edit']
+      },
+      {
+        label: "Marketing",
+        href: `/${username}/email-marketing`,
+        icon: <Mail className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+        activeMatches: ['/email-marketing']
+      },
+      {
+        label: "Social Content",
+        href: `/${username}/social-content`,
+        icon: <Image className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+        activeMatches: ['/social-content', '/listing-graphics']
+      },
+      {
+        label: "Lot Maps",
+        href: `/${username}/lot-maps`,
+        icon: <MapPin className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+        activeMatches: ['/lot-maps', '/lot-maps/']
+      }
+    ]);
+    
+    setAccountLinks([
+      {
+        label: "Profile",
+        href: `/profile/${username}`,
+        icon: <UserCircle className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+      },
+      {
+        label: "Theme",
+        href: `/${username}/theme`,
+        icon: <Palette className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+        activeMatches: ['/theme']
+      },
+      {
+        label: "Settings",
+        href: `/${username}/settings`,
+        icon: <Settings className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+        activeMatches: ['/settings']
+      },
+    ]);
+  }, [username]);
 
-  // Only generate nav items if we have a username
-  if (!username) return null;
-
-  const navItems = [
-    { href: `/${username}/dashboard`, label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: `/${username}/listings`, label: "Listings", icon: <FileText className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: `/${username}/theme`, label: "Theme", icon: <Palette className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: `/${username}/email-marketing`, label: "Email Marketing", icon: <Mail className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: `/${username}/social-content`, label: "Social Content", icon: <MessageSquare className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true, comingSoon: true },
-    { href: `/${username}/listing-graphics`, label: "Listing Graphics", icon: <Image className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true },
-    { href: `/${username}/lot-maps`, label: "Lot Maps", icon: <Map className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: true, comingSoon: true },
-    { href: `/${username}/settings`, label: "Settings", icon: <Settings className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: false },
-    { href: `/${username}`, label: "View Public Profile", icon: <User className="h-5 w-5 mr-3 text-gray-500" />, requiresVerification: false },
-  ];
+  // Check if current path matches any of the activeMatches
+  const isActive = (link: NavLink) => {
+    if (!link.activeMatches) return location === link.href;
+    return link.activeMatches.some(match => location.includes(match));
+  };
 
   return (
-    <aside className={cn("flex-col w-64 border-r border-gray-200 bg-white hidden md:flex", className)}>
-      <div className="p-5 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">Agent Dashboard</h2>
-        <p className="text-sm text-gray-500">@{username}</p>
-      </div>
-      <nav className="flex-1 space-y-1 py-4">
-        {navItems.map((item) => {
-          const isDisabled = !isEmailVerified && item.requiresVerification;
-          const isActive = location === item.href;
+    <Sidebar open={open} setOpen={setOpen}>
+      <SidebarBody className="justify-between gap-10">
+        <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
+          <div>
+            {open ? <Logo username={username} /> : <LogoIcon username={username} />}
+          </div>
           
-          return (
-            <Link 
-              key={item.href} 
-              href={isDisabled ? "#" : item.href}
-              className={cn(
-                "flex items-center px-4 py-3 text-sm font-medium",
-                isActive
-                  ? "bg-gray-50 text-gray-900 border-l-3 border-primary-600"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
-                isDisabled && "opacity-50 cursor-not-allowed"
-              )}
-              onClick={e => isDisabled && e.preventDefault()}
-            >
-              {item.icon}
-              {item.label}
-              {item.comingSoon && (
-                <span className="ml-auto text-xs bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-sm font-medium">
-                  Coming Soon
+          <div className="mt-8 flex flex-col gap-2">
+            {mainLinks.map((link, idx) => (
+              <SidebarLink 
+                key={idx} 
+                link={{
+                  ...link,
+                  icon: React.cloneElement(link.icon as React.ReactElement, {
+                    className: cn(
+                      (link.icon as React.ReactElement).props.className,
+                      isActive(link) ? "text-primary" : ""
+                    )
+                  })
+                }}
+                className={isActive(link) ? "font-medium" : ""}
+              />
+            ))}
+      </div>
+          
+          <div className="mt-10 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+            <span className={open ? "text-xs text-neutral-500 dark:text-neutral-400 px-2 mb-2 block" : "hidden"}>
+              Account
                 </span>
+            {accountLinks.map((link, idx) => (
+              <SidebarLink 
+                key={idx} 
+                link={{
+                  ...link,
+                  icon: React.cloneElement(link.icon as React.ReactElement, {
+                    className: cn(
+                      (link.icon as React.ReactElement).props.className,
+                      isActive(link) ? "text-primary" : ""
+                    )
+                  })
+                }}
+                className={isActive(link) ? "font-medium" : ""}
+              />
+            ))}
+          </div>
+        </div>
+        <div>
+          {userData && (
+            <SidebarLink
+              link={{
+                label: userData.fullName || userData.username || "User",
+                href: `/${username}/settings`,
+                icon: (
+                  userData.profileImage ? (
+                    <img
+                      src={userData.profileImage}
+                      className="h-7 w-7 flex-shrink-0 rounded-full object-cover"
+                      alt="Profile"
+                    />
+                  ) : (
+                    <UserCircle className="h-7 w-7 flex-shrink-0 text-neutral-700 dark:text-neutral-200" />
+                  )
+                ),
+              }}
+            />
               )}
-              {isDisabled && !item.comingSoon && (
-                <span className="ml-auto text-xs text-gray-500">
-                  (Verify email)
-                </span>
-              )}
-            </Link>
+            </div>
+      </SidebarBody>
+    </Sidebar>
           );
-        })}
-      </nav>
-    </aside>
+          }
+
+// Logo components
+const Logo = ({ username }: { username: string }) => {
+          return (
+    <a
+      href={username ? `/${username}/dashboard` : "/dashboard"}
+      className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
+    >
+      <div className="h-5 w-6 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0" />
+      <motion.span
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="font-medium text-black dark:text-white whitespace-pre"
+      >
+        Agent Tools
+      </motion.span>
+    </a>
   );
-}
+};
+
+const LogoIcon = ({ username }: { username: string }) => {
+  return (
+    <a
+      href={username ? `/${username}/dashboard` : "/dashboard"}
+      className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"
+    >
+      <div className="h-5 w-6 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0" />
+    </a>
+  );
+};

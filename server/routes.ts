@@ -7,7 +7,10 @@ import {
   insertEmailTemplateSchema, 
   insertSocialContentSchema,
   insertSocialAccountSchema,
-  insertNotificationPreferencesSchema
+  insertNotificationPreferencesSchema,
+  insertLotSchema,
+  insertMapSettingsSchema,
+  updateLotSchema
 } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
@@ -18,6 +21,7 @@ import { Strategy as LocalStrategy } from "passport-local";
 import MemoryStore from "memorystore";
 import { registerEmailRoutes } from "./routes/email";
 import { registerMarketingRoutes } from "./routes/marketing";
+import { registerThemeRoutes } from "./routes/theme";
 import { EmailService } from "./services/emailService";
 
 const SessionStore = MemoryStore(session);
@@ -642,12 +646,251 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register custom route handlers for email and marketing features
   registerEmailRoutes(app, storage);
   registerMarketingRoutes(app, storage);
+  registerThemeRoutes(app, storage);
 
   // Set up site URL if not set - used in email links
   if (!process.env.SITE_URL) {
     process.env.SITE_URL = 'https://homesbin.com';
     console.log(`Notice: SITE_URL not set, using default: ${process.env.SITE_URL}`);
   }
+
+  // Lot map routes
+  app.get("/api/lots", async (req, res) => {
+    try {
+      const mapId = req.query.mapId ? parseInt(req.query.mapId as string) : undefined;
+      const lots = await storage.getLots(mapId);
+      res.json(lots);
+    } catch (error) {
+      console.error("Error getting lots:", error);
+      res.status(500).json({ message: "Failed to retrieve lots" });
+    }
+  });
+
+  app.get("/api/lots/:id", async (req, res) => {
+    try {
+      const lot = await storage.getLot(parseInt(req.params.id));
+      if (!lot) {
+        res.status(404).json({ message: "Lot not found" });
+        return;
+      }
+      res.json(lot);
+    } catch (error) {
+      console.error("Error getting lot:", error);
+      res.status(500).json({ message: "Failed to retrieve lot" });
+    }
+  });
+
+  app.get("/api/lots/search", async (req, res) => {
+    try {
+      const query = z.string().parse(req.query.q);
+      const results = await storage.searchLots(query);
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching lots:", error);
+      res.status(500).json({ message: "Failed to search lots" });
+    }
+  });
+
+  app.get("/api/lots/filter", async (req, res) => {
+    try {
+      const filterSchema = z.object({
+        status: z.string().optional(),
+        minPrice: z.coerce.number().optional(),
+        maxPrice: z.coerce.number().optional(),
+        minSqft: z.coerce.number().optional(),
+        maxSqft: z.coerce.number().optional(),
+      });
+
+      const filters = filterSchema.parse(req.query);
+      const results = await storage.filterLots(filters);
+      res.json(results);
+    } catch (error) {
+      console.error("Error filtering lots:", error);
+      res.status(500).json({ message: "Failed to filter lots" });
+    }
+  });
+
+  app.post("/api/lots", async (req, res) => {
+    try {
+      if (!req.session.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const lotData = insertLotSchema.parse(req.body);
+      // Add the current user's ID to the lot data
+      const newLot = { ...lotData, userId: req.session.user.id };
+      
+      const lot = await storage.createLot(newLot);
+      res.status(201).json(lot);
+    } catch (error) {
+      console.error("Error creating lot:", error);
+      res.status(400).json({ message: "Invalid lot data" });
+    }
+  });
+
+  app.patch("/api/lots/:id", async (req, res) => {
+    try {
+      if (!req.session.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const lotId = parseInt(req.params.id);
+      
+      // First check if the user owns this lot
+      const existingLot = await storage.getLot(lotId);
+      if (!existingLot) {
+        return res.status(404).json({ message: "Lot not found" });
+      }
+      
+      if (existingLot.userId !== req.session.user.id) {
+        return res.status(403).json({ message: "You don't have permission to edit this lot" });
+      }
+      
+      const updateData = updateLotSchema.parse({ ...req.body, id: lotId });
+      const lot = await storage.updateLot(updateData);
+      res.json(lot);
+    } catch (error) {
+      console.error("Error updating lot:", error);
+      res.status(400).json({ message: "Invalid lot data" });
+    }
+  });
+
+  app.delete("/api/lots/:id", async (req, res) => {
+    try {
+      if (!req.session.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const lotId = parseInt(req.params.id);
+      
+      // First check if the user owns this lot
+      const existingLot = await storage.getLot(lotId);
+      if (!existingLot) {
+        return res.status(404).json({ message: "Lot not found" });
+      }
+      
+      if (existingLot.userId !== req.session.user.id) {
+        return res.status(403).json({ message: "You don't have permission to delete this lot" });
+      }
+      
+      await storage.deleteLot(lotId);
+      res.status(204).end();
+    } catch (error) {
+      console.error("Error deleting lot:", error);
+      res.status(500).json({ message: "Failed to delete lot" });
+    }
+  });
+
+  // Map Settings routes
+  app.get("/api/map-settings", async (req, res) => {
+    try {
+      if (req.query.slug) {
+        const settings = await storage.getMapSettings(req.query.slug as string);
+        res.json(settings || {});
+      } else if (req.session.user) {
+        // If authenticated but no slug, return the user's map settings
+        const settings = await storage.getUserMapSettings(req.session.user.id);
+        res.json(settings || []);
+      } else {
+        // If not authenticated and no slug, return empty object
+        res.json({});
+      }
+    } catch (error) {
+      console.error("Error getting map settings:", error);
+      res.status(500).json({ message: "Failed to retrieve map settings" });
+    }
+  });
+
+  app.get("/api/map-settings/:id", async (req, res) => {
+    try {
+      const settings = await storage.getMapSettingsById(parseInt(req.params.id));
+      if (!settings) {
+        res.status(404).json({ message: "Map settings not found" });
+        return;
+      }
+      res.json(settings);
+    } catch (error) {
+      console.error("Error getting map settings:", error);
+      res.status(500).json({ message: "Failed to retrieve map settings" });
+    }
+  });
+
+  app.post("/api/map-settings", async (req, res) => {
+    try {
+      if (!req.session.user) {
+        return res.status(401).json({ message: "Unauthorized - Please log in" });
+      }
+      
+      const settingsData = insertMapSettingsSchema.parse(req.body);
+      
+      // Check if slug already exists
+      if (settingsData.slug) {
+        const existingMap = await storage.getMapSettings(settingsData.slug);
+        if (existingMap && existingMap.length > 0) {
+          return res.status(400).json({ message: "A map with this name already exists. Please choose a different name." });
+        }
+      }
+      
+      // Add the current user's ID to the settings data
+      const newSettings = { ...settingsData, userId: req.session.user.id };
+      
+      // If updating existing settings
+      if (req.body.id) {
+        const existingSettings = await storage.getMapSettingsById(req.body.id);
+        
+        if (!existingSettings) {
+          return res.status(404).json({ message: "Map settings not found" });
+        }
+        
+        if (existingSettings.userId !== req.session.user.id) {
+          return res.status(403).json({ message: "You don't have permission to edit these settings" });
+        }
+        
+        const updated = await storage.updateMapSettings({
+          ...newSettings,
+          id: req.body.id
+        });
+        return res.json(updated);
+      }
+      
+      // Creating new settings
+      const settings = await storage.createMapSettings(newSettings);
+      res.status(201).json(settings);
+    } catch (error) {
+      console.error("Error creating/updating map settings:", error);
+      if (error.errors) {
+        // Zod validation error
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      res.status(400).json({ message: "Invalid map settings data" });
+    }
+  });
+
+  app.delete("/api/map-settings/:id", async (req, res) => {
+    try {
+      if (!req.session.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const settingsId = parseInt(req.params.id);
+      
+      // First check if the user owns these settings
+      const existingSettings = await storage.getMapSettingsById(settingsId);
+      if (!existingSettings) {
+        return res.status(404).json({ message: "Map settings not found" });
+      }
+      
+      if (existingSettings.userId !== req.session.user.id) {
+        return res.status(403).json({ message: "You don't have permission to delete these settings" });
+      }
+      
+      await storage.deleteMapSettings(settingsId);
+      res.status(204).end();
+    } catch (error) {
+      console.error("Error deleting map settings:", error);
+      res.status(500).json({ message: "Failed to delete map settings" });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

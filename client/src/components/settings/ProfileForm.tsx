@@ -17,6 +17,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { Upload, User, Info } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const formSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(50),
@@ -85,6 +87,15 @@ export default function ProfileForm() {
         <CardDescription>Update your account information</CardDescription>
       </CardHeader>
       <CardContent>
+        <Alert className="mb-6">
+          <Info className="h-4 w-4" />
+          <AlertTitle>Public Profile Information</AlertTitle>
+          <AlertDescription>
+            The information you provide here will be displayed on your public profile. 
+            Make sure to update all fields for the most complete public profile.
+          </AlertDescription>
+        </Alert>
+        
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField

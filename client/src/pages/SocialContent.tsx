@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useParams, useLocation } from "wouter";
 import Header from "@/components/layout/Header";
-import Sidebar from "@/components/layout/Sidebar";
+import DashboardSidebar from "@/components/layout/Sidebar";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -11,20 +12,48 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Image, Facebook, Twitter, Instagram, Linkedin, Upload, MessageSquare, Calendar, Send, Plus } from "lucide-react";
+import { Image, Facebook, Twitter, Instagram, Linkedin, Upload, MessageSquare, Calendar, Send, Plus, Copy, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+interface UserData {
+  id: number;
+  username: string;
+  email: string;
+  emailVerified?: boolean;
+  fullName?: string;
+}
+
 export default function SocialContent() {
-  const [openNewPost, setOpenNewPost] = useState(false);
-  const { toast } = useToast();
+  const params = useParams();
+  const [location, navigate] = useLocation();
   
-  const { data: userSession } = useQuery({
+  // Get username from URL params
+  const usernameFromUrl = params.username;
+  
+  // Get current user session
+  const { data: sessionData, isLoading: sessionLoading } = useQuery<{ user: UserData }>({
     queryKey: ['/api/auth/session'],
   });
   
-  const { data: listings } = useQuery({
-    queryKey: ['/api/listings'],
+  const currentUser = sessionData?.user;
+  
+  // Fetch user data 
+  const { data: userData, isLoading: userLoading } = useQuery<UserData>({
+    queryKey: ['/api/user'],
+    enabled: !!currentUser,
   });
+
+  // Get listings - with explicit type definition
+  const { data: listings = [], isLoading: listingsLoading } = useQuery<any[]>({
+    queryKey: ['/api/listings'],
+    enabled: !!currentUser,
+  });
+
+  // Social platform state
+  const [activeTab, setActiveTab] = useState("instagram");
+  const [contentText, setContentText] = useState("");
+  
+  const { toast } = useToast();
   
   const { data: socialAccounts } = useQuery({
     queryKey: ['/api/social-accounts'],
@@ -38,38 +67,95 @@ export default function SocialContent() {
     setOpenNewPost(false);
   };
   
-  // Sample post data for demonstration
-  const samplePosts = [
-    {
-      id: 1,
-      content: "Excited to announce a new listing! This beautiful 4-bed, 3-bath home in the heart of Westwood is now available. Contact me for details! #realestate #newlisting",
-      image: "https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80",
-      platform: "facebook",
-      status: "published",
-      date: "2023-06-15",
-      engagement: {
-        likes: 24,
-        comments: 8,
-        shares: 3
-      }
-    },
-    {
-      id: 2,
-      content: "Just listed! Stunning 3-bedroom condo with amazing city views. Modern finishes throughout and an open floor plan perfect for entertaining. #dreamhome #realestate",
-      image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80",
-      platform: "instagram",
-      status: "scheduled",
-      date: "2023-06-22",
-      engagement: null
+  // Sample generated content
+  const sampleContent = {
+    instagram: [
+      "Just listed this stunning 4-bedroom home in Oak Ridge! Modern finishes, open floor plan, and a backyard paradise. DM for details! #NewListing #RealEstate #DreamHome",
+      "This charming colonial just hit the market! Features include hardwood floors, a chef's kitchen, and a private backyard oasis. Schedule your showing today! #JustListed #HomeSweetHome",
+      "Market update: Inventory is low, but demand remains high in the metro area. Now is a great time to list your home! #RealEstateMarket #SellerMarket"
+    ],
+    facebook: [
+      "NEW LISTING ALERT! 🏡 Gorgeous 4-bedroom, 3-bath home in desirable Oak Ridge neighborhood. This property won't last long! Click the link in bio to schedule a showing.",
+      "Just closed on another beautiful home for my wonderful clients! Congratulations to the Smith family on their new chapter. It was a pleasure helping you find your dream home!",
+      "Looking for a home with a view? This stunning property overlooks the entire valley and features floor-to-ceiling windows to maximize the breathtaking scenery."
+    ],
+    twitter: [
+      "Just listed! Beautiful 4BR/3BA in Oak Ridge. Modern finishes, open concept living. DM for details! #RealEstate #NewListing",
+      "Market Update: Median home prices up 5% from last year in our area. Great time to sell! #RealEstateMarket #HousingMarket",
+      "Congrats to my clients on closing their dream home today! Persistence pays off in this market. #JustSold #HappyClients"
+    ],
+    linkedin: [
+      "I'm excited to announce a new property just listed in the prestigious Oak Ridge neighborhood. This executive home features smart home technology, a home office, and resort-style outdoor living. Perfect for the discerning professional. #LuxuryRealEstate #NewListing",
+      "Market Insight: Commercial real estate in our downtown district is showing strong signs of recovery, with occupancy rates increasing 15% over last quarter. #CommercialRealEstate #MarketAnalysis",
+      "Proud to share that our team has helped 50 families find their dream homes this year! Looking to expand our reach in 2023. #RealEstateSuccess #TeamAchievement"
+    ]
+  };
+  
+  // If we're directly accessing the /social-content route, redirect to /:username/social-content
+  useEffect(() => {
+    if (!usernameFromUrl && userData?.username) {
+      navigate(`/${userData.username}/social-content`, { replace: true });
     }
-  ];
+  }, [usernameFromUrl, userData, navigate]);
+  
+  // Check if user is authorized to view this page (can only view their own)
+  useEffect(() => {
+    if (usernameFromUrl && userData && usernameFromUrl !== userData.username) {
+      // Redirect to their own social content page if trying to access someone else's
+      navigate(`/${userData.username}/social-content`, { replace: true });
+    }
+  }, [usernameFromUrl, userData, navigate]);
+  
+  // Show loading state while we check authentication
+  if (sessionLoading || userLoading) {
+    return <div className="p-8">Loading social content dashboard...</div>;
+  }
+  
+  // If no user data, show a message
+  if (!userData) {
+    return <div className="p-8">Please log in to view your social content dashboard</div>;
+  }
+  
+  // Handle copying content to clipboard
+  const handleCopyContent = (text: string) => {
+    navigator.clipboard.writeText(text);
+    // In a real app, would show a toast notification here
+    alert("Copied to clipboard!");
+  };
+  
+  // Get platform icon
+  const getPlatformIcon = (platform: string) => {
+    switch (platform) {
+      case "instagram":
+        return <Instagram className="h-5 w-5" />;
+      case "facebook":
+        return <Facebook className="h-5 w-5" />;
+      case "twitter":
+        return <Twitter className="h-5 w-5" />;
+      case "linkedin":
+        return <Linkedin className="h-5 w-5" />;
+      default:
+        return <Globe className="h-5 w-5" />;
+    }
+  };
+
+  const [openNewPost, setOpenNewPost] = useState(false);
+  
+  // Handle generating content
+  const handleGenerateContent = (listingId: number) => {
+    // In a real app, this would generate content based on the listing
+    toast({
+      title: "Content Generated",
+      description: "Social media content has been generated for your listing",
+    });
+  };
   
   return (
     <div className="min-h-screen flex flex-col">
-      <Header isAuthenticated={!!userSession?.user} />
+      <Header isAuthenticated={!!userData} />
       
       <div className="flex-grow flex">
-        <Sidebar />
+        <DashboardSidebar />
         
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 md:px-8">
@@ -96,48 +182,31 @@ export default function SocialContent() {
               
               <TabsContent value="posts" className="mt-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {samplePosts.map(post => (
-                    <Card key={post.id}>
+                  {sampleContent[activeTab as keyof typeof sampleContent].map((content, idx) => (
+                    <Card key={idx}>
                       <CardHeader className="pb-3">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center">
-                            {post.platform === "facebook" && <Facebook className="h-5 w-5 text-blue-600 mr-2" />}
-                            {post.platform === "twitter" && <Twitter className="h-5 w-5 text-blue-400 mr-2" />}
-                            {post.platform === "instagram" && <Instagram className="h-5 w-5 text-pink-600 mr-2" />}
-                            {post.platform === "linkedin" && <Linkedin className="h-5 w-5 text-blue-700 mr-2" />}
+                            {getPlatformIcon(activeTab)}
                             <CardTitle className="text-base">
-                              {post.platform.charAt(0).toUpperCase() + post.platform.slice(1)} Post
+                              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Post
                             </CardTitle>
                           </div>
                           <div className="text-xs bg-muted px-2 py-1 rounded-full">
-                            {post.status === "published" ? "Published" : "Scheduled"}
+                            {activeTab === "instagram" ? "Scheduled" : "Generated"}
                           </div>
                         </div>
-                        <CardDescription>{new Date(post.date).toLocaleDateString()}</CardDescription>
+                        <CardDescription>{new Date().toLocaleDateString()}</CardDescription>
                       </CardHeader>
-                      {post.image && (
-                        <div className="px-6">
-                          <img 
-                            src={post.image} 
-                            alt="Social media post" 
-                            className="rounded-md w-full h-48 object-cover"
-                          />
-                        </div>
-                      )}
                       <CardContent className="pt-4">
-                        <p className="text-sm">{post.content}</p>
-                        
-                        {post.engagement && (
-                          <div className="mt-4 flex justify-between text-xs text-muted-foreground">
-                            <span>{post.engagement.likes} Likes</span>
-                            <span>{post.engagement.comments} Comments</span>
-                            <span>{post.engagement.shares} Shares</span>
-                          </div>
-                        )}
+                        <p className="text-sm">{content}</p>
                       </CardContent>
                       <CardFooter className="flex justify-between">
                         <Button variant="outline" size="sm">Edit</Button>
-                        <Button variant="ghost" size="sm">Delete</Button>
+                        <Button variant="ghost" size="sm" onClick={() => handleCopyContent(content)}>
+                          <Copy className="h-4 w-4 mr-2" />
+                          Copy
+                        </Button>
                       </CardFooter>
                     </Card>
                   ))}

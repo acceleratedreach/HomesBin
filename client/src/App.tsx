@@ -18,18 +18,23 @@ import SocialContent from "@/pages/SocialContent";
 import ListingGraphics from "@/pages/ListingGraphics";
 import LotMaps from "@/pages/LotMaps";
 import ThemePage from "@/pages/ThemePage";
+import LotMapEditor from "@/pages/lotmap/LotMapEditor";
+import PublicLotMapViewer from "@/pages/lotmap/PublicLotMapViewer";
 import VerifyEmail from "@/components/auth/VerifyEmail";
 import ResetPassword from "@/components/auth/ResetPassword";
 import ForgotPassword from "@/components/auth/ForgotPassword";
 import { useQuery } from "@tanstack/react-query";
 
+interface UserData {
+  id: number;
+  username: string;
+  email: string;
+  emailVerified?: boolean;
+  fullName?: string;
+}
+
 interface SessionData {
-  user: {
-    username: string;
-    email: string;
-    emailVerified: boolean;
-    fullName?: string;
-  };
+  user: UserData;
 }
 
 // Routes that are accessible without authentication
@@ -43,7 +48,7 @@ const PUBLIC_ROUTES = [
 ];
 
 function AppRoutes() {
-  const [location, setLocation] = useLocation();
+  const [location, navigate] = useLocation();
   
   // Fetch session data to determine authentication status
   const { data: sessionData, isLoading: sessionLoading } = useQuery<SessionData>({
@@ -56,43 +61,60 @@ function AppRoutes() {
   const isAuthenticated = !!sessionData?.user;
   
   // Fetch user data if authenticated
-  const { data: userData, isLoading: userLoading } = useQuery<{
-    id: number;
-    username: string;
-    email: string;
-    emailVerified?: boolean;
-    fullName?: string;
-  }>({
+  const { data: userData, isLoading: userLoading } = useQuery<UserData>({
     queryKey: ['/api/user'],
     enabled: isAuthenticated,
     staleTime: 1000 * 60 * 5 // 5 minutes
   });
   
-  // Simplify by not tracking loading state
+  // Get current user information
   const currentUser = userData || sessionData?.user;
-  
-  // Log auth status for debugging
-  console.log('Auth status:', { 
-    isAuthenticated, 
-    location,
-    username: currentUser?.username || null
-  });
   
   // Handle authentication-based redirects
   useEffect(() => {
     // Don't redirect from root path - allow users to see landing page even when authenticated
+    if (location === '/') return;
+    
+    // If loading, wait for data before making routing decisions
+    if (sessionLoading) return;
+    
+    // Check if trying to access a public route
+    const isPublicRoute = PUBLIC_ROUTES.includes(location) || 
+                          location.startsWith('/verify-email') ||
+                          location.startsWith('/profile/');
     
     // If not authenticated and trying to access a protected route
-    const isPublicRoute = PUBLIC_ROUTES.includes(location) || 
-                          // Special case for verification links
-                          location.startsWith('/verify-email');
-    
     if (!isAuthenticated && !isPublicRoute) {
-      setLocation('/login');
+      navigate('/login', { replace: true });
+      return;
     }
     
-  }, [isAuthenticated, location, setLocation]);
-  
+    // If authenticated but accessing a non-username route, redirect to the username-specific route
+    if (isAuthenticated && currentUser?.username && !sessionLoading && !userLoading) {
+      // List of path prefixes that should be username-specific
+      const userSpecificPrefixes = ['/dashboard', '/settings', '/listings', '/email-marketing', 
+                                   '/social-content', '/listing-graphics', '/lot-maps', '/theme'];
+      
+      // Check if current path matches any of these prefixes exactly
+      const shouldRedirect = userSpecificPrefixes.some(prefix => 
+        location === prefix || // Exact match
+        location.startsWith(`${prefix}/`) // Prefix with additional path
+      );
+      
+      if (shouldRedirect) {
+        // Extract the path after the prefix
+        const matchedPrefix = userSpecificPrefixes.find(prefix => 
+          location === prefix || location.startsWith(`${prefix}/`)
+        );
+        
+        if (matchedPrefix) {
+          const restOfPath = location === matchedPrefix ? '' : location.substring(matchedPrefix.length);
+          navigate(`/${currentUser.username}${matchedPrefix}${restOfPath}`, { replace: true });
+        }
+      }
+    }
+  }, [isAuthenticated, location, sessionLoading, userLoading, currentUser, navigate]);
+
   return (
     <Switch>
       {/* Authentication Routes */}
@@ -118,74 +140,115 @@ function AppRoutes() {
       
       {/* Main Dashboard */}
       <Route path="/:username/dashboard">
-        {() => isAuthenticated ? <Dashboard /> : <Login />}
+        {(params) => isAuthenticated ? <Dashboard /> : <Login />}
       </Route>
       <Route path="/dashboard">
-        {() => isAuthenticated ? <Dashboard /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <Dashboard /> : 
+          <Login />
+        }
       </Route>
       
       {/* User Feature Routes */}
       <Route path="/:username/settings">
-        {() => isAuthenticated ? <Settings /> : <Login />}
+        {(params) => isAuthenticated ? <Settings /> : <Login />}
       </Route>
       <Route path="/settings">
-        {() => isAuthenticated ? <Settings /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <Settings /> : 
+          <Login />
+        }
       </Route>
       
       <Route path="/:username/listings/new">
-        {() => isAuthenticated ? <ListingCreate /> : <Login />}
+        {(params) => isAuthenticated ? <ListingCreate /> : <Login />}
       </Route>
       <Route path="/listings/new">
-        {() => isAuthenticated ? <ListingCreate /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <ListingCreate /> : 
+          <Login />
+        }
       </Route>
       
       <Route path="/:username/listings/:id/edit">
         {(params) => isAuthenticated ? <ListingEdit id={Number(params.id)} /> : <Login />}
       </Route>
       <Route path="/listings/:id/edit">
-        {(params) => isAuthenticated ? <ListingEdit id={Number(params.id)} /> : <Login />}
+        {(params) => isAuthenticated && currentUser ? 
+          <ListingEdit id={Number(params.id)} /> : 
+          <Login />
+        }
       </Route>
       
       <Route path="/:username/listings">
-        {() => isAuthenticated ? <Listings /> : <Login />}
+        {(params) => isAuthenticated ? <Listings /> : <Login />}
       </Route>
       <Route path="/listings">
-        {() => isAuthenticated ? <Listings /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <Listings /> : 
+          <Login />
+        }
       </Route>
       
       <Route path="/:username/email-marketing">
-        {() => isAuthenticated ? <EmailMarketing /> : <Login />}
+        {(params) => isAuthenticated ? <EmailMarketing /> : <Login />}
       </Route>
       <Route path="/email-marketing">
-        {() => isAuthenticated ? <EmailMarketing /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <EmailMarketing /> : 
+          <Login />
+        }
       </Route>
       
       <Route path="/:username/social-content">
-        {() => isAuthenticated ? <SocialContent /> : <Login />}
+        {(params) => isAuthenticated ? <SocialContent /> : <Login />}
       </Route>
       <Route path="/social-content">
-        {() => isAuthenticated ? <SocialContent /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <SocialContent /> : 
+          <Login />
+        }
       </Route>
       
       <Route path="/:username/listing-graphics">
-        {() => isAuthenticated ? <ListingGraphics /> : <Login />}
+        {(params) => isAuthenticated ? <ListingGraphics /> : <Login />}
       </Route>
       <Route path="/listing-graphics">
-        {() => isAuthenticated ? <ListingGraphics /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <ListingGraphics /> : 
+          <Login />
+        }
       </Route>
       
+      {/* Lot Maps Routes */}
       <Route path="/:username/lot-maps">
-        {() => isAuthenticated ? <LotMaps /> : <Login />}
+        {(params) => isAuthenticated ? <LotMaps /> : <Login />}
       </Route>
       <Route path="/lot-maps">
-        {() => isAuthenticated ? <LotMaps /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <LotMaps /> : 
+          <Login />
+        }
+      </Route>
+      
+      {/* Lot Map Editor Routes */}
+      <Route path="/:username/lot-maps/:slug/editor">
+        {(params) => isAuthenticated ? <LotMapEditor /> : <Login />}
+      </Route>
+      
+      {/* Public Lot Map Viewer */}
+      <Route path="/homesbin.com/:slug">
+        {(params) => <PublicLotMapViewer />}
       </Route>
       
       <Route path="/:username/theme">
-        {() => isAuthenticated ? <ThemePage /> : <Login />}
+        {(params) => isAuthenticated ? <ThemePage /> : <Login />}
       </Route>
       <Route path="/theme">
-        {() => isAuthenticated ? <ThemePage /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <ThemePage /> : 
+          <Login />
+        }
       </Route>
       
       {/* Public Profile */}
@@ -194,7 +257,10 @@ function AppRoutes() {
       </Route>
       
       <Route path="/profile">
-        {() => isAuthenticated ? <Profile username={currentUser?.username} /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <Profile username={currentUser.username} /> : 
+          <Login />
+        }
       </Route>
       
       {/* Landing Page */}

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useParams, useLocation } from "wouter";
 import Header from "@/components/layout/Header";
-import Sidebar from "@/components/layout/Sidebar";
+import DashboardSidebar from "@/components/layout/Sidebar";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
 import DashboardStats from "@/components/dashboard/DashboardStats";
 import PropertyCard from "@/components/dashboard/PropertyCard";
@@ -9,203 +9,145 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, BarChart2, UserPlus, Building, Calendar, Mail } from "lucide-react";
-
-interface DashboardProps {
-  username?: string;
-}
+import { useEffect } from "react";
 
 interface UserData {
   id: number;
   username: string;
   email: string;
-  fullName?: string;
   emailVerified?: boolean;
+  fullName?: string;
 }
 
-export default function Dashboard({ username }: DashboardProps = {}) {
-  // Get current session data
-  const { data: sessionData } = useQuery<{ user: UserData }>({
+export default function Dashboard() {
+  const params = useParams();
+  const [location, navigate] = useLocation();
+  
+  // Get username from URL params
+  const usernameFromUrl = params.username;
+  
+  // Get current user session
+  const { data: sessionData, isLoading: sessionLoading } = useQuery<{ user: UserData }>({
     queryKey: ['/api/auth/session'],
   });
-
-  // Get user data
-  const { data: userData } = useQuery<UserData>({
+  
+  const currentUser = sessionData?.user;
+  
+  // Fetch user data 
+  const { data: userData, isLoading: userLoading } = useQuery<UserData>({
     queryKey: ['/api/user'],
-    enabled: !!sessionData?.user,
+    enabled: !!currentUser,
   });
-  
-  // Get user's listings
-  const { data: listings = [], isLoading: loadingListings } = useQuery<any[]>({
+
+  // Get listings for the user
+  const { data: listings = [], isLoading: listingsLoading } = useQuery<any[]>({
     queryKey: ['/api/listings'],
-    enabled: !!sessionData?.user,
+    enabled: !!currentUser,
   });
   
-  // Get the current username 
-  const currentUsername = userData?.username || sessionData?.user?.username;
+  // Recent activity - would be fetched from API in a real app
+  const recentActivity = [];
+  
+  // If we're directly accessing the /dashboard route, redirect to /:username/dashboard
+  useEffect(() => {
+    if (!usernameFromUrl && userData?.username) {
+      navigate(`/${userData.username}/dashboard`, { replace: true });
+    }
+  }, [usernameFromUrl, userData, navigate]);
+  
+  // Check if user is authorized to view this dashboard (can only view their own)
+  useEffect(() => {
+    if (usernameFromUrl && userData && usernameFromUrl !== userData.username) {
+      // Redirect to their own dashboard if trying to access someone else's
+      navigate(`/${userData.username}/dashboard`, { replace: true });
+    }
+  }, [usernameFromUrl, userData, navigate]);
+  
+  // Show loading state while we check authentication
+  if (sessionLoading || userLoading) {
+    return <div className="p-8">Loading dashboard...</div>;
+  }
+  
+  // If no user data, show a message
+  if (!userData) {
+    return <div className="p-8">Please log in to view your dashboard</div>;
+  }
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header isAuthenticated={!!sessionData?.user} />
+      <Header isAuthenticated={!!userData} />
       
       <div className="flex-grow flex">
-        {/* Always show sidebar in dashboard */}
-        <Sidebar />
+        <DashboardSidebar />
         
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 md:px-8">
             <EmailVerificationAlert />
             
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-2xl font-bold">Dashboard</h1>
-              <Button asChild>
-                <Link href="/listings/new">
-                  <Plus className="h-4 w-4 mr-2" /> Add New Listing
-                </Link>
-              </Button>
+            <div className="mb-8">
+              <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+                <Button asChild>
+                  <Link href={`/${userData.username}/listings/new`}>
+                    Create New Listing
+                  </Link>
+                </Button>
+              </div>
+              
+              <p className="text-gray-500">
+                Welcome back, {userData.fullName || userData.username}! Here's an overview of your account.
+              </p>
             </div>
             
             <DashboardStats />
             
-            <div className="mt-8">
-              <Tabs defaultValue="recent-listings">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="recent-listings">Recent Listings</TabsTrigger>
-                  <TabsTrigger value="recent-leads">Recent Leads</TabsTrigger>
-                  <TabsTrigger value="upcoming">Upcoming Tasks</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="recent-listings" className="mt-6">
-                  {loadingListings ? (
-                    <div className="text-center py-12">Loading listings...</div>
-                  ) : listings.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {listings.slice(0, 3).map((listing: any) => (
-                        <PropertyCard key={listing.id} listing={listing} />
-                      ))}
-                      {listings.length > 3 && (
-                        <Card className="flex items-center justify-center">
-                          <CardContent className="py-6 text-center">
-                            <p className="mb-4 text-muted-foreground">
-                              {listings.length - 3} more listings
-                            </p>
-                            <Button asChild variant="outline">
-                              <Link href="/listings">View All Listings</Link>
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                  ) : (
-                    <Card>
-                      <CardContent className="py-12 text-center">
-                        <Building className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium mb-2">No listings yet</h3>
-                        <p className="text-muted-foreground mb-6">
-                          Create your first property listing to get started
-                        </p>
-                        <Button asChild>
-                          <Link href="/listings/new">
-                            <Plus className="h-4 w-4 mr-2" /> Create Listing
-                          </Link>
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
-                
-                <TabsContent value="recent-leads" className="mt-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Recent Leads</CardTitle>
-                      <CardDescription>Leads from all your marketing channels</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-center py-6">
-                        <UserPlus className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium mb-2">No leads yet</h3>
-                        <p className="text-muted-foreground mb-6">
-                          Leads will appear here when people show interest in your listings
-                        </p>
-                        <Button asChild variant="outline">
-                          <Link href="/email-marketing">
-                            <Mail className="h-4 w-4 mr-2" /> Set Up Email Campaign
-                          </Link>
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-                
-                <TabsContent value="upcoming" className="mt-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Upcoming Tasks</CardTitle>
-                      <CardDescription>Your scheduled tasks and reminders</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-center py-6">
-                        <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium mb-2">No upcoming tasks</h3>
-                        <p className="text-muted-foreground mb-6">
-                          You don't have any scheduled tasks at the moment
-                        </p>
-                        <Button disabled variant="outline">
-                          Add Task (Coming Soon)
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
+            <div className="mt-10">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-900">Your Listings</h2>
+                <Link href={`/${userData.username}/listings`} className="text-primary hover:underline text-sm">
+                  View All Listings
+                </Link>
+              </div>
+              
+              {listingsLoading ? (
+                <div className="text-center py-8">Loading listings...</div>
+              ) : listings.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {listings.slice(0, 3).map((listing) => (
+                    <PropertyCard key={listing.id} listing={listing} />
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white p-8 rounded-lg border text-center">
+                  <h3 className="text-gray-900 font-medium mb-2">No listings yet</h3>
+                  <p className="text-gray-500 mb-4">Create your first property listing to showcase it to potential clients.</p>
+                  <Button asChild>
+                    <Link href={`/${userData.username}/listings/new`}>
+                      Create New Listing
+                    </Link>
+                  </Button>
+                </div>
+              )}
             </div>
             
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Performance Metrics</CardTitle>
-                  <CardDescription>Overview of your marketing performance</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-center h-48">
-                    <BarChart2 className="h-16 w-16 text-muted-foreground" />
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="mt-10">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-900">Recent Activity</h2>
+              </div>
               
-              <Card>
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                  <CardDescription>Common tasks and shortcuts</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <Button asChild variant="outline" className="w-full justify-start">
-                      <Link href="/listings/new">
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add New Listing
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="w-full justify-start">
-                      <Link href="/email-marketing">
-                        <Mail className="mr-2 h-4 w-4" />
-                        Create Email Campaign
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="w-full justify-start">
-                      <Link href="/listing-graphics">
-                        <Building className="mr-2 h-4 w-4" />
-                        Generate Listing Graphics
-                      </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="w-full justify-start">
-                      <Link href="/profile">
-                        <UserPlus className="mr-2 h-4 w-4" />
-                        Complete Profile
-                      </Link>
-                    </Button>
+              {recentActivity.length > 0 ? (
+                <div className="bg-white rounded-lg border divide-y">
+                  {/* Activity items would go here */}
+                  <div className="p-4">
+                    <span className="text-gray-500">No recent activity</span>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              ) : (
+                <div className="bg-white p-8 rounded-lg border text-center">
+                  <h3 className="text-gray-900 font-medium mb-2">No recent activity</h3>
+                  <p className="text-gray-500">Your recent activities will appear here.</p>
+                </div>
+              )}
             </div>
           </div>
         </main>

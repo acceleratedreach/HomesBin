@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useParams, useLocation } from "wouter";
 import Header from "@/components/layout/Header";
-import Sidebar from "@/components/layout/Sidebar";
+import DashboardSidebar from "@/components/layout/Sidebar";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
 import EmailTemplateForm from "@/components/marketing/EmailTemplateForm";
 import { Button } from "@/components/ui/button";
@@ -11,220 +12,317 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, Plus, Send, Copy, X, Edit, Trash2 } from "lucide-react";
+import { Mail, Plus, Send, Copy, X, Edit, Trash2, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { EmailTemplate } from "@shared/schema";
+import { Link } from "wouter";
+
+interface UserData {
+  id: number;
+  username: string;
+  email: string;
+  emailVerified?: boolean;
+  fullName?: string;
+}
+
+interface Campaign {
+  id: number;
+  name: string;
+  subject: string;
+  status: "draft" | "scheduled" | "sent";
+  sentDate?: string;
+  openRate?: number;
+  clickRate?: number;
+  recipients: number;
+}
 
 export default function EmailMarketing() {
-  const [openNewTemplate, setOpenNewTemplate] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
-  const { toast } = useToast();
+  const params = useParams();
+  const [location, navigate] = useLocation();
   
-  const { data: userSession } = useQuery({
+  // Get username from URL params
+  const usernameFromUrl = params.username;
+  
+  // Get current user session
+  const { data: sessionData, isLoading: sessionLoading } = useQuery<{ user: UserData }>({
     queryKey: ['/api/auth/session'],
   });
   
-  const { data: templates, isLoading } = useQuery({
-    queryKey: ['/api/email-templates'],
+  const currentUser = sessionData?.user;
+  
+  // Fetch user data 
+  const { data: userData, isLoading: userLoading } = useQuery<UserData>({
+    queryKey: ['/api/user'],
+    enabled: !!currentUser,
+  });
+
+  // Get email campaigns
+  const { data: campaigns = [], isLoading: campaignsLoading } = useQuery<Campaign[]>({
+    queryKey: ['/api/campaigns'],
+    enabled: !!currentUser,
   });
   
-  const handleSendEmail = () => {
-    // In a real app, this would send the email
-    toast({
-      title: "Email Campaign Started",
-      description: "Your email campaign has been scheduled for delivery.",
-    });
-  };
+  // Sample contact list data
+  const contactLists = [
+    { id: 1, name: "All Contacts", count: 124 },
+    { id: 2, name: "Buyers", count: 56 },
+    { id: 3, name: "Sellers", count: 42 },
+    { id: 4, name: "Past Clients", count: 78 },
+  ];
+  
+  // State for active tab
+  const [activeTab, setActiveTab] = useState("campaigns");
+  
+  // If we're directly accessing the /email-marketing route, redirect to /:username/email-marketing
+  useEffect(() => {
+    if (!usernameFromUrl && userData?.username) {
+      navigate(`/${userData.username}/email-marketing`, { replace: true });
+    }
+  }, [usernameFromUrl, userData, navigate]);
+  
+  // Check if user is authorized to view this page (can only view their own)
+  useEffect(() => {
+    if (usernameFromUrl && userData && usernameFromUrl !== userData.username) {
+      // Redirect to their own email marketing page if trying to access someone else's
+      navigate(`/${userData.username}/email-marketing`, { replace: true });
+    }
+  }, [usernameFromUrl, userData, navigate]);
+  
+  // Show loading state while we check authentication
+  if (sessionLoading || userLoading) {
+    return <div className="p-8">Loading email marketing dashboard...</div>;
+  }
+  
+  // If no user data, show a message
+  if (!userData) {
+    return <div className="p-8">Please log in to view your email marketing dashboard</div>;
+  }
   
   return (
     <div className="min-h-screen flex flex-col">
-      <Header isAuthenticated={!!userSession?.user} />
+      <Header isAuthenticated={!!userData} />
       
       <div className="flex-grow flex">
-        <Sidebar />
+        <DashboardSidebar />
         
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 md:px-8">
             <EmailVerificationAlert />
             
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-8">
               <div>
-                <h1 className="text-2xl font-bold">Email Marketing</h1>
-                <p className="text-muted-foreground">
-                  Create and manage email campaigns for your listings
+                <h1 className="text-2xl font-bold text-gray-900">Email Marketing</h1>
+                <p className="text-gray-500 mt-1">
+                  Create and manage your email marketing campaigns
                 </p>
               </div>
               
-              <Button onClick={() => setOpenNewTemplate(true)}>
-                <Plus className="h-4 w-4 mr-2" /> Create Template
+              <Button asChild>
+                <Link href={`/${userData.username}/email-marketing/new`}>
+                  <Plus className="h-4 w-4 mr-2" /> Create Campaign
+                </Link>
               </Button>
             </div>
             
-            <Tabs defaultValue="templates">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="templates">Email Templates</TabsTrigger>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+              <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
                 <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+                <TabsTrigger value="templates">Templates</TabsTrigger>
+                <TabsTrigger value="contacts">Contacts</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="templates" className="mt-6 space-y-6">
-                {isLoading ? (
-                  <div className="text-center py-12">Loading templates...</div>
-                ) : templates && templates.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {templates.map((template: EmailTemplate) => (
-                      <Card key={template.id}>
-                        <CardHeader className="pb-3">
-                          <CardTitle>{template.name}</CardTitle>
-                          <CardDescription className="truncate">{template.subject}</CardDescription>
+              <TabsContent value="campaigns">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="md:col-span-2">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Recent Campaigns</CardTitle>
+                        <CardDescription>Your recent email marketing campaigns</CardDescription>
                         </CardHeader>
                         <CardContent>
-                          <p className="text-sm text-muted-foreground line-clamp-3">
-                            {template.content}
-                          </p>
-                        </CardContent>
-                        <CardFooter className="flex justify-between">
-                          <Button variant="outline" size="sm" onClick={() => setSelectedTemplate(template)}>
-                            <Edit className="h-4 w-4 mr-1" /> Edit
+                        {campaignsLoading ? (
+                          <div className="text-center py-8">Loading campaigns...</div>
+                        ) : campaigns.length > 0 ? (
+                          <div className="divide-y">
+                            {campaigns.map((campaign) => (
+                              <div key={campaign.id} className="py-4 flex justify-between items-center">
+                                <div>
+                                  <h3 className="font-medium">{campaign.name}</h3>
+                                  <p className="text-sm text-gray-500">
+                                    {campaign.status === "sent" 
+                                      ? `Sent on ${campaign.sentDate}` 
+                                      : campaign.status === "scheduled" 
+                                        ? "Scheduled" 
+                                        : "Draft"}
+                                  </p>
+                                </div>
+                                <div className="flex items-center space-x-4">
+                                  {campaign.status === "sent" && (
+                                    <div className="text-sm">
+                                      <span className="text-gray-500">Opens: </span>
+                                      <span className="font-medium">{campaign.openRate}%</span>
+                                    </div>
+                                  )}
+                                  <Button 
+                                    variant={campaign.status === "draft" ? "default" : "outline"}
+                                    size="sm"
+                                  >
+                                    {campaign.status === "draft" ? "Edit" : "View"}
                           </Button>
-                          <Button size="sm">
-                            <Send className="h-4 w-4 mr-1" /> Use
-                          </Button>
-                        </CardFooter>
-                      </Card>
+                                </div>
+                              </div>
                     ))}
                   </div>
                 ) : (
-                  <Card>
-                    <CardContent className="py-12 text-center">
-                      <Mail className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No email templates yet</h3>
-                      <p className="text-muted-foreground mb-6">
-                        Create your first email template to get started with email marketing
-                      </p>
-                      <Button onClick={() => setOpenNewTemplate(true)}>
-                        <Plus className="h-4 w-4 mr-2" /> Create Template
+                          <div className="text-center py-8">
+                            <Mail className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                            <h3 className="text-lg font-medium text-gray-900 mb-2">No campaigns yet</h3>
+                            <p className="text-gray-500 mb-6">
+                              Create your first email campaign to engage with your clients
+                            </p>
+                            <Button asChild>
+                              <Link href={`/${userData.username}/email-marketing/new`}>
+                                <Plus className="h-4 w-4 mr-2" /> Create Campaign
+                              </Link>
                       </Button>
+                          </div>
+                        )}
                     </CardContent>
                   </Card>
-                )}
-                
-                <Dialog open={openNewTemplate} onOpenChange={setOpenNewTemplate}>
-                  <DialogContent className="max-w-3xl">
-                    <DialogHeader>
-                      <DialogTitle>Create Email Template</DialogTitle>
-                      <DialogDescription>
-                        Design a reusable email template for your marketing campaigns
-                      </DialogDescription>
-                    </DialogHeader>
-                    <EmailTemplateForm onSuccess={() => setOpenNewTemplate(false)} />
-                  </DialogContent>
-                </Dialog>
-                
-                <Dialog open={!!selectedTemplate} onOpenChange={() => setSelectedTemplate(null)}>
-                  <DialogContent className="max-w-3xl">
-                    <DialogHeader>
-                      <DialogTitle>Edit Email Template</DialogTitle>
-                      <DialogDescription>
-                        Update your email template
-                      </DialogDescription>
-                    </DialogHeader>
-                    {selectedTemplate && (
-                      <EmailTemplateForm 
-                        template={selectedTemplate}
-                        isEditing={true}
-                        onSuccess={() => setSelectedTemplate(null)}
-                      />
-                    )}
-                  </DialogContent>
-                </Dialog>
+                  </div>
+                  
+                  <div>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Campaign Metrics</CardTitle>
+                        <CardDescription>Performance overview</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="border rounded-lg p-4">
+                            <p className="text-sm text-gray-500">Average Open Rate</p>
+                            <p className="text-2xl font-bold">24.8%</p>
+                          </div>
+                          <div className="border rounded-lg p-4">
+                            <p className="text-sm text-gray-500">Average Click Rate</p>
+                            <p className="text-2xl font-bold">3.2%</p>
+                          </div>
+                          <div className="border rounded-lg p-4">
+                            <p className="text-sm text-gray-500">Total Subscribers</p>
+                            <p className="text-2xl font-bold">{contactLists.reduce((sum, list) => sum + list.count, 0)}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
               </TabsContent>
               
-              <TabsContent value="campaigns" className="mt-6">
+              <TabsContent value="templates">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="md:col-span-2">
                 <Card>
                   <CardHeader>
-                    <CardTitle>New Email Campaign</CardTitle>
-                    <CardDescription>
-                      Create a new email marketing campaign
-                    </CardDescription>
+                        <CardTitle>Email Templates</CardTitle>
+                        <CardDescription>Pre-designed templates for your campaigns</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label htmlFor="campaignName">Campaign Name</Label>
-                        <Input id="campaignName" placeholder="Spring Listings Announcement" />
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {["New Listing", "Open House", "Price Reduction", "Just Sold", "Market Update", "Holiday Greetings"].map((template, index) => (
+                            <div key={index} className="border rounded-lg p-4 flex justify-between items-center">
+                              <div>
+                                <h3 className="font-medium">{template}</h3>
+                                <p className="text-sm text-gray-500">
+                                  {index < 4 ? "Property Template" : "Newsletter Template"}
+                                </p>
+                              </div>
+                              <Button variant="outline" size="sm">Use</Button>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="emailTemplate">Email Template</Label>
-                        <select 
-                          id="emailTemplate"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <option value="" disabled selected>Select a template</option>
-                          {templates && templates.map((template: EmailTemplate) => (
-                            <option key={template.id} value={template.id}>
-                              {template.name}
-                            </option>
                           ))}
-                        </select>
                       </div>
+                      </CardContent>
+                    </Card>
                     </div>
                     
-                    <Separator />
-                    
+                  <div>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Template Builder</CardTitle>
+                        <CardDescription>Create a custom template</CardDescription>
+                      </CardHeader>
+                      <CardContent>
                     <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-lg font-medium">Recipients</h3>
-                        <Button variant="outline" size="sm">
-                          <Plus className="h-4 w-4 mr-1" /> Add Recipient
+                          <p className="text-sm text-gray-500">
+                            Design a custom email template to match your brand
+                          </p>
+                          <div className="space-y-2">
+                            <Label htmlFor="template-name">Template Name</Label>
+                            <Input id="template-name" placeholder="My Custom Template" />
+                          </div>
+                          <Button className="w-full">Create Custom Template</Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="contacts">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="md:col-span-2">
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <div>
+                          <CardTitle>Contact Lists</CardTitle>
+                          <CardDescription>Manage your subscriber lists</CardDescription>
+                        </div>
+                        <Button size="sm">
+                          <Plus className="h-4 w-4 mr-2" /> New List
                         </Button>
-                      </div>
-                      
-                      <div className="border rounded-md divide-y">
-                        <div className="p-3 flex justify-between items-center">
-                          <div>
-                            <p className="font-medium">John Smith</p>
-                            <p className="text-sm text-muted-foreground">john@example.com</p>
-                          </div>
-                          <Button variant="ghost" size="icon">
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="p-3 flex justify-between items-center">
-                          <div>
-                            <p className="font-medium">Sarah Johnson</p>
-                            <p className="text-sm text-muted-foreground">sarah@example.com</p>
-                          </div>
-                          <Button variant="ghost" size="icon">
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="divide-y">
+                          {contactLists.map((list) => (
+                            <div key={list.id} className="py-4 flex justify-between items-center">
+                              <div>
+                                <h3 className="font-medium">{list.name}</h3>
+                                <p className="text-sm text-gray-500">{list.count} contacts</p>
+                              </div>
+                              <div className="flex space-x-2">
+                                <Button variant="outline" size="sm">View</Button>
+                                <Button variant="outline" size="sm">Edit</Button>
                       </div>
                     </div>
-                    
-                    <Separator />
-                    
-                    <div className="space-y-2">
-                      <Label>Schedule</Label>
-                      <div className="flex space-x-2">
-                        <div className="flex items-center">
-                          <input type="radio" id="sendNow" name="schedule" value="now" className="mr-2" />
-                          <Label htmlFor="sendNow">Send immediately</Label>
+                          ))}
                         </div>
-                        <div className="flex items-center">
-                          <input type="radio" id="sendLater" name="schedule" value="later" className="mr-2" />
-                          <Label htmlFor="sendLater">Schedule for later</Label>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  <div>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Import Contacts</CardTitle>
+                        <CardDescription>Add contacts from a file</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <p className="text-sm text-gray-500">
+                            Upload a CSV file with your contacts
+                          </p>
+                          <div className="border border-dashed rounded-lg p-6 text-center">
+                            <Users className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                            <p className="text-sm text-gray-500 mb-2">
+                              Drag and drop a file or click to browse
+                            </p>
+                            <Button variant="outline" size="sm">Select File</Button>
+                          </div>
+                          <Button className="w-full" disabled>Upload Contacts</Button>
                         </div>
+                      </CardContent>
+                    </Card>
                       </div>
                     </div>
-                  </CardContent>
-                  <CardFooter className="flex justify-end space-x-2">
-                    <Button variant="outline">Preview</Button>
-                    <Button onClick={handleSendEmail}>
-                      <Send className="h-4 w-4 mr-2" />
-                      Send Campaign
-                    </Button>
-                  </CardFooter>
-                </Card>
               </TabsContent>
             </Tabs>
           </div>

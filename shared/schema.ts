@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -48,6 +48,66 @@ export const insertListingSchema = createInsertSchema(listings).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+});
+
+// Lot map model
+export const lots = pgTable("lots", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  mapId: integer("map_id").notNull().references(() => mapSettings.id),
+  number: text("number").notNull(),
+  status: text("status").notNull().default("available"),
+  price: integer("price").notNull(),
+  sqft: integer("sqft").notNull(),
+  bedrooms: integer("bedrooms").notNull(),
+  bathrooms: real("bathrooms").notNull(),
+  description: text("description"),
+  imageUrls: text("image_urls").array(),
+  svgPath: text("svg_path").notNull(),
+  amenities: text("amenities").array(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Map settings model
+export const mapSettings = pgTable("map_settings", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  backgroundImage: text("background_image"),
+  slug: text("slug").notNull().unique(),
+  isPublic: boolean("is_public").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertLotSchema = z.object({
+  userId: z.number().optional(),
+  mapId: z.number().optional(),
+  number: z.string(),
+  status: z.string().default("available"),
+  price: z.number().int().positive(),
+  sqft: z.number().int().positive(),
+  bedrooms: z.number().int().nonnegative(),
+  bathrooms: z.number().positive(),
+  description: z.string().optional(),
+  imageUrls: z.array(z.string()).optional().default([]),
+  svgPath: z.string(),
+  amenities: z.array(z.string()).optional().default([]),
+});
+
+export const updateLotSchema = insertLotSchema.partial().extend({
+  id: z.number(),
+});
+
+export const insertMapSettingsSchema = z.object({
+  userId: z.number().optional(),
+  name: z.string().min(1, "Map name is required"),
+  description: z.string().optional(),
+  backgroundImage: z.string().optional(),
+  slug: z.string().optional(),
+  isPublic: z.boolean().optional().default(true),
 });
 
 // Marketing email templates
@@ -111,12 +171,60 @@ export const insertNotificationPreferencesSchema = createInsertSchema(notificati
   id: true,
 });
 
+// User theme settings
+export const userThemes = pgTable("user_themes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  templateId: text("template_id").notNull().default("professional"),
+  primaryColor: text("primary_color").notNull().default("#4f46e5"),
+  colorMode: text("color_mode").notNull().default("light"),
+  fontFamily: text("font_family").notNull().default("Inter"),
+  fontSize: integer("font_size").notNull().default(16),
+  borderRadius: integer("border_radius").notNull().default(8),
+  customCss: text("custom_css"),
+  headerLayout: text("header_layout").notNull().default("standard"),
+  featuredListingsLayout: text("featured_listings_layout").notNull().default("grid"),
+  contactFormEnabled: boolean("contact_form_enabled").default(true),
+  socialLinksEnabled: boolean("social_links_enabled").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type UserTheme = typeof userThemes.$inferSelect;
+export type InsertUserTheme = typeof userThemes.$inferInsert;
+
+export const insertUserThemeSchema = createInsertSchema(userThemes);
+export const selectUserThemeSchema = z.object({
+  id: z.number(),
+  userId: z.number(),
+  templateId: z.string(),
+  primaryColor: z.string(),
+  colorMode: z.string(),
+  fontFamily: z.string(),
+  fontSize: z.number(),
+  borderRadius: z.number(),
+  customCss: z.string().optional(),
+  headerLayout: z.string(),
+  featuredListingsLayout: z.string(),
+  contactFormEnabled: z.boolean(),
+  socialLinksEnabled: z.boolean(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
 // Define types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
 export type Listing = typeof listings.$inferSelect;
 export type InsertListing = z.infer<typeof insertListingSchema>;
+
+export type Lot = typeof lots.$inferSelect;
+export type InsertLot = z.infer<typeof insertLotSchema>;
+export type UpdateLot = z.infer<typeof updateLotSchema>;
+
+export type MapSettings = typeof mapSettings.$inferSelect;
+export type InsertMapSettings = z.infer<typeof insertMapSettingsSchema>;
 
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;

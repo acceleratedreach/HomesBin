@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Header from "@/components/layout/Header";
-import Sidebar from "@/components/layout/Sidebar";
+import DashboardSidebar from "@/components/layout/Sidebar";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -11,10 +11,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
-import { Palette, Home, Layers, Type, Check, SquareStack, Paintbrush } from "lucide-react";
+import { Palette, Home, Layers, Type, Check, SquareStack, Paintbrush, Layout } from "lucide-react";
+import { TemplateSelector } from "@/components/profile/templates";
+
+interface UserSession {
+  user?: { 
+    id?: string;
+    username?: string;
+    fullName?: string;
+    profileImage?: string;
+  };
+}
 
 export default function ThemePage() {
-  const { data: userSession } = useQuery({
+  const { data: userSession } = useQuery<UserSession>({
     queryKey: ['/api/auth/session'],
   });
   
@@ -22,13 +32,60 @@ export default function ThemePage() {
   
   // Theme state
   const [selectedColor, setSelectedColor] = useState("#4f46e5");
-  const [selectedTheme, setSelectedTheme] = useState("professional");
+  const [selectedTemplate, setSelectedTemplate] = useState("professional");
   const [selectedMode, setSelectedMode] = useState("light");
   const [borderRadius, setBorderRadius] = useState(0.5);
   
   // Font settings
   const [primaryFont, setPrimaryFont] = useState("Inter");
   const [fontSize, setFontSize] = useState(16);
+
+  // Demo data for template preview
+  const demoUserData = {
+    username: "johndoe",
+    fullName: "John Doe",
+    email: "john@example.com",
+    phone: "(555) 123-4567",
+    profileImage: "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&h=200&q=80",
+    bio: "Real estate professional with over 10 years of experience helping clients buy and sell properties in the metropolitan area. Specializing in residential properties and investment opportunities.",
+    location: "Los Angeles, CA",
+    experience: "10+ years",
+    specialties: ["Residential", "Commercial", "Luxury Homes", "Investment Properties"],
+    licenses: ["Licensed Real Estate Agent #123456", "Certified Negotiation Expert", "Luxury Home Specialist"]
+  };
+
+  const demoListings = [
+    {
+      id: 1,
+      title: "Modern Downtown Condo",
+      address: "123 Main Street, Unit 5B",
+      city: "Los Angeles",
+      state: "CA",
+      zipCode: "90001",
+      price: 750000,
+      bedrooms: 2,
+      bathrooms: 2,
+      squareFeet: 1200,
+      description: "Beautiful modern condo in the heart of downtown with stunning city views.",
+      status: "Active",
+      images: ["https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80"]
+    },
+    {
+      id: 2,
+      title: "Spacious Family Home",
+      address: "456 Oak Avenue",
+      city: "Los Angeles",
+      state: "CA",
+      zipCode: "90002",
+      price: 1250000,
+      bedrooms: 4,
+      bathrooms: 3,
+      squareFeet: 2800,
+      description: "Gorgeous family home with large backyard in a quiet and friendly neighborhood.",
+      status: "Active",
+      images: ["https://images.unsplash.com/photo-1523217582562-09d0def993a6?auto=format&fit=crop&w=800&q=80"]
+    }
+  ];
   
   // Colors for the theme palette
   const colorPalette = [
@@ -42,13 +99,6 @@ export default function ThemePage() {
     { color: "#10b981", name: "Green" },
   ];
   
-  // Themes
-  const themes = [
-    { id: "professional", name: "Professional", description: "Clean, corporate look" },
-    { id: "tint", name: "Tint", description: "Soft, muted colors" },
-    { id: "vibrant", name: "Vibrant", description: "Bold, eye-catching design" }
-  ];
-  
   const fonts = [
     "Inter",
     "Roboto",
@@ -56,14 +106,59 @@ export default function ThemePage() {
     "Montserrat",
     "Playfair Display"
   ];
+
+  // Current theme for template preview
+  const previewTheme = {
+    primaryColor: selectedColor,
+    colorMode: selectedMode,
+    fontFamily: primaryFont,
+    fontSize: fontSize,
+    borderRadius: borderRadius * 16, // Convert from rem to px
+    socialLinksEnabled: true,
+    contactFormEnabled: true,
+    featuredListingsLayout: 'grid'
+  };
   
+  // Mock function for saving theme settings
+  const { mutate: saveTheme, isPending: isSaving } = useMutation({
+    mutationFn: async (themeSettings: any) => {
+      // Simulate API call
+      console.log("Saving theme settings:", themeSettings);
+      // Fake delay to simulate network request
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return themeSettings;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Theme Updated",
+        description: "Your brand theme and profile template have been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "There was a problem saving your theme settings. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
   const handleSaveTheme = () => {
-    // In a real implementation, we would save the theme settings to the server
-    // For now, we'll just show a success toast
-    toast({
-      title: "Theme Updated",
-      description: "Your brand theme has been updated successfully.",
-    });
+    // Create theme settings object
+    const themeSettings = {
+      primaryColor: selectedColor,
+      colorMode: selectedMode,
+      fontFamily: primaryFont,
+      fontSize: fontSize,
+      borderRadius: borderRadius * 16, // Convert from rem to px
+      template: selectedTemplate,
+      socialLinksEnabled: true,
+      contactFormEnabled: true,
+      featuredListingsLayout: 'grid'
+    };
+    
+    // Use the mutation to save theme settings
+    saveTheme(themeSettings);
   };
   
   return (
@@ -71,7 +166,7 @@ export default function ThemePage() {
       <Header isAuthenticated={!!userSession?.user} />
       
       <div className="flex-grow flex">
-        <Sidebar />
+        <DashboardSidebar />
         
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 md:px-8">
@@ -84,8 +179,12 @@ export default function ThemePage() {
               </p>
             </div>
             
-            <Tabs defaultValue="colors">
-              <TabsList className="grid w-full grid-cols-3">
+            <Tabs defaultValue="templates">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="templates">
+                  <Layout className="h-4 w-4 mr-2" />
+                  Templates
+                </TabsTrigger>
                 <TabsTrigger value="colors">
                   <Palette className="h-4 w-4 mr-2" />
                   Colors
@@ -99,6 +198,24 @@ export default function ThemePage() {
                   Layout
                 </TabsTrigger>
               </TabsList>
+
+              <TabsContent value="templates" className="mt-6 space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Profile Templates</CardTitle>
+                    <CardDescription>Select a template for your public profile</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <TemplateSelector
+                      currentTemplate={selectedTemplate}
+                      onChange={setSelectedTemplate}
+                      demoUserData={demoUserData}
+                      demoListings={demoListings}
+                      theme={previewTheme}
+                    />
+                  </CardContent>
+                </Card>
+              </TabsContent>
               
               <TabsContent value="colors" className="mt-6 space-y-6">
                 <Card>
@@ -161,50 +278,6 @@ export default function ThemePage() {
                         </Button>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Theme Style</CardTitle>
-                    <CardDescription>Choose the overall look and feel</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <RadioGroup 
-                      defaultValue={selectedTheme}
-                      onValueChange={setSelectedTheme}
-                      className="grid grid-cols-1 md:grid-cols-3 gap-4"
-                    >
-                      {themes.map((theme) => (
-                        <Label
-                          key={theme.id}
-                          htmlFor={theme.id}
-                          className={`cursor-pointer flex flex-col border rounded-md p-4 ${
-                            selectedTheme === theme.id ? 'border-primary bg-primary/5' : 'border-muted'
-                          }`}
-                        >
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value={theme.id} id={theme.id} />
-                            <span className="font-medium">{theme.name}</span>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">{theme.description}</p>
-                          <div className="mt-3 grid grid-cols-5 gap-1">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <div 
-                                key={i} 
-                                className="h-4 rounded" 
-                                style={{ 
-                                  backgroundColor: selectedColor,
-                                  opacity: theme.id === "professional" ? 0.7 + (i * 0.1) :
-                                           theme.id === "tint" ? 0.3 + (i * 0.15) :
-                                           0.5 + (i * 0.15)
-                                }}
-                              />
-                            ))}
-                          </div>
-                        </Label>
-                      ))}
-                    </RadioGroup>
                   </CardContent>
                 </Card>
                 
@@ -399,22 +472,23 @@ export default function ThemePage() {
                   </CardHeader>
                   <CardContent>
                     <RadioGroup 
-                      defaultValue="cards"
-                      className="grid grid-cols-1 md:grid-cols-3 gap-4"
+                      defaultValue="grid"
+                      className="grid grid-cols-1 md:grid-cols-2 gap-4"
                     >
                       <Label
-                        htmlFor="cards-layout"
+                        htmlFor="grid-layout"
                         className="cursor-pointer flex flex-col border rounded-md p-4 border-primary bg-primary/5"
                       >
                         <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="cards" id="cards-layout" />
-                          <span className="font-medium">Cards</span>
+                          <RadioGroupItem value="grid" id="grid-layout" />
+                          <span className="font-medium">Grid Layout</span>
                         </div>
+                        <p className="text-sm text-muted-foreground mt-1">Display listings in a grid format</p>
                         <div className="mt-3 grid grid-cols-2 gap-2">
-                          <div className="h-12 bg-white border rounded"></div>
-                          <div className="h-12 bg-white border rounded"></div>
-                          <div className="h-12 bg-white border rounded"></div>
-                          <div className="h-12 bg-white border rounded"></div>
+                          <div className="h-10 bg-white border rounded"></div>
+                          <div className="h-10 bg-white border rounded"></div>
+                          <div className="h-10 bg-white border rounded"></div>
+                          <div className="h-10 bg-white border rounded"></div>
                         </div>
                       </Label>
                       
@@ -424,8 +498,9 @@ export default function ThemePage() {
                       >
                         <div className="flex items-center space-x-2">
                           <RadioGroupItem value="list" id="list-layout" />
-                          <span className="font-medium">List</span>
+                          <span className="font-medium">List Layout</span>
                         </div>
+                        <p className="text-sm text-muted-foreground mt-1">Display listings in a list format</p>
                         <div className="mt-3 space-y-2">
                           <div className="h-6 bg-white border rounded flex items-center px-2">
                             <div className="h-3 w-3 bg-gray-300 rounded-full mr-2"></div>
@@ -441,24 +516,6 @@ export default function ThemePage() {
                           </div>
                         </div>
                       </Label>
-                      
-                      <Label
-                        htmlFor="grid-layout"
-                        className="cursor-pointer flex flex-col border rounded-md p-4 border-muted"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="grid" id="grid-layout" />
-                          <span className="font-medium">Grid</span>
-                        </div>
-                        <div className="mt-3 grid grid-cols-3 gap-1">
-                          <div className="h-8 bg-white border rounded"></div>
-                          <div className="h-8 bg-white border rounded"></div>
-                          <div className="h-8 bg-white border rounded"></div>
-                          <div className="h-8 bg-white border rounded"></div>
-                          <div className="h-8 bg-white border rounded"></div>
-                          <div className="h-8 bg-white border rounded"></div>
-                        </div>
-                      </Label>
                     </RadioGroup>
                   </CardContent>
                 </Card>
@@ -466,9 +523,21 @@ export default function ThemePage() {
             </Tabs>
             
             <div className="mt-6 flex justify-end">
-              <Button onClick={handleSaveTheme}>
-                <Paintbrush className="h-4 w-4 mr-2" />
-                Save Theme
+              <Button onClick={handleSaveTheme} disabled={isSaving}>
+                {isSaving ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Paintbrush className="h-4 w-4 mr-2" />
+                    Save Theme
+                  </>
+                )}
               </Button>
             </div>
           </div>

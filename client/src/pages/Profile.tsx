@@ -1,17 +1,14 @@
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
 import Header from "@/components/layout/Header";
-import Sidebar from "@/components/layout/Sidebar";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { User, Mail, Phone, MapPin, Award, Calendar, Building, Edit, Upload } from "lucide-react";
+import { User, Mail, Phone, MapPin, Award, Calendar, Building } from "lucide-react";
 import PropertyCard from "@/components/dashboard/PropertyCard";
+import { ProfessionalTemplate, ModernTemplate, VibrantTemplate } from "@/components/profile/templates";
+import { ProfileTemplateProps } from "@/components/profile/templates";
 
 interface ProfileProps {
   username?: string;
@@ -24,6 +21,22 @@ interface UserData {
   fullName?: string;
   emailVerified?: boolean;
   profileImage?: string;
+  title?: string;
+  phone?: string;
+  location?: string;
+  experience?: string;
+  bio?: string;
+  specialties?: string[];
+  licenses?: string[];
+}
+
+interface ThemeSettings {
+  primaryColor: string;
+  secondaryColor: string;
+  fontFamily: string;
+  borderRadius: string;
+  darkMode: boolean;
+  template?: string;
 }
 
 export default function Profile({ username }: ProfileProps = {}) {
@@ -47,6 +60,23 @@ export default function Profile({ username }: ProfileProps = {}) {
     enabled: !!displayUsername || !!sessionData?.user,
   });
   
+  // Fetch theme settings for this user
+  const { data: themeSettings, isLoading: loadingTheme } = useQuery<ThemeSettings>({
+    queryKey: displayUsername ? 
+      [`/api/users/${displayUsername}/theme`] : 
+      ['/api/user/theme'],
+    enabled: !!displayUsername || !!sessionData?.user,
+    // Default theme settings if none are set
+    placeholderData: {
+      primaryColor: "#4f46e5",
+      secondaryColor: "#10b981",
+      fontFamily: "Inter",
+      borderRadius: "medium",
+      darkMode: false,
+      template: "ProfessionalTemplate"
+    }
+  });
+  
   // Determine if this is the user's own profile
   const isOwnProfile = sessionData?.user && 
                        userData && 
@@ -60,266 +90,82 @@ export default function Profile({ username }: ProfileProps = {}) {
     enabled: !!displayUsername || !!sessionData?.user,
   });
   
-  const [isEditing, setIsEditing] = useState(false);
-  
   // Use API data, falling back to defaults when needed
   const profileData = {
     name: userData?.fullName || userData?.username || "Agent Name",
-    title: "Real Estate Professional",
-    phone: "(555) 123-4567",
+    title: userData?.title || "Real Estate Professional",
+    phone: userData?.phone || "(555) 123-4567",
     email: userData?.email || "agent@example.com",
-    location: "New York, NY",
-    bio: "Licensed real estate agent with over 5 years of experience in luxury properties and new developments. I specialize in helping clients find their dream homes in the most desirable neighborhoods.",
-    specialties: ["Luxury Homes", "New Construction", "Investment Properties"],
-    experience: "5+ years",
-    licenses: ["NY Real Estate License #12345"],
+    location: userData?.location || "New York, NY",
+    bio: userData?.bio || "Licensed real estate agent with over 5 years of experience in luxury properties and new developments. I specialize in helping clients find their dream homes in the most desirable neighborhoods.",
+    specialties: userData?.specialties || ["Luxury Homes", "New Construction", "Investment Properties"],
+    experience: userData?.experience || "5+ years",
+    licenses: userData?.licenses || ["NY Real Estate License #12345"],
     profileImage: userData?.profileImage || "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&h=200&q=80"
   };
+  
+  // Show loading state while data is being fetched
+  if (loadingUserData || loadingTheme) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header isAuthenticated={!!sessionData?.user} />
+        <div className="flex-grow flex items-center justify-center">
+          <p>Loading profile information...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Prepare template props
+  const templateProps: ProfileTemplateProps = {
+    userData: profileData,
+    listings: listings,
+    theme: {
+      primaryColor: themeSettings?.primaryColor || "#4f46e5",
+      colorMode: themeSettings?.darkMode ? 'dark' : 'light',
+      fontFamily: themeSettings?.fontFamily || "Inter",
+      fontSize: 16,
+      borderRadius: themeSettings?.borderRadius === "small" ? 4 : 
+                   themeSettings?.borderRadius === "large" ? 12 : 8,
+      socialLinksEnabled: true,
+      contactFormEnabled: true,
+      featuredListingsLayout: 'grid'
+    },
+    isOwnProfile: isOwnProfile
+  };
+  
+  // Select the appropriate template component based on theme settings
+  let SelectedTemplate = ProfessionalTemplate; // Default template
+  
+  if (themeSettings?.template) {
+    switch (themeSettings.template) {
+      case "ModernTemplate":
+        SelectedTemplate = ModernTemplate;
+        break;
+      case "VibrantTemplate":
+        SelectedTemplate = VibrantTemplate;
+        break;
+      case "ProfessionalTemplate":
+      default:
+        SelectedTemplate = ProfessionalTemplate;
+        break;
+    }
+  }
   
   return (
     <div className="min-h-screen flex flex-col">
       <Header isAuthenticated={!!sessionData?.user} />
       
-      <div className="flex-grow flex">
-        {/* No sidebar on profile page */}
+      <div className="flex-grow">
+        {isOwnProfile && <EmailVerificationAlert />}
         
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 md:px-8">
-            {isOwnProfile && <EmailVerificationAlert />}
-            
-            <div className="mb-8">
-              <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold">
-                  {isOwnProfile ? "My Profile" : `${profileData.name}'s Profile`}
-                </h1>
-                {isOwnProfile && (
-                  <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    {isEditing ? "Cancel Editing" : "Edit Profile"}
-                  </Button>
-                )}
-              </div>
-              
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex flex-col md:flex-row gap-8">
-                    <div className="flex flex-col items-center">
-                      <div className="relative">
-                        <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-lg">
-                          <img 
-                            src={profileData.profileImage} 
-                            alt={profileData.name} 
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        {isEditing && (
-                          <Button variant="outline" size="icon" className="absolute bottom-0 right-0 rounded-full h-8 w-8">
-                            <Upload className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                      {!isEditing && (
-                        <div className="mt-4 text-center">
-                          <h2 className="text-xl font-bold">{profileData.name}</h2>
-                          <p className="text-muted-foreground">{profileData.title}</p>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="flex-1">
-                      {isEditing ? (
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label htmlFor="fullName">Full Name</Label>
-                              <Input id="fullName" defaultValue={profileData.name} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="title">Professional Title</Label>
-                              <Input id="title" defaultValue={profileData.title} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="email">Email</Label>
-                              <Input id="email" type="email" defaultValue={profileData.email} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="phone">Phone</Label>
-                              <Input id="phone" defaultValue={profileData.phone} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="location">Location</Label>
-                              <Input id="location" defaultValue={profileData.location} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label htmlFor="experience">Experience</Label>
-                              <Input id="experience" defaultValue={profileData.experience} />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="bio">Bio</Label>
-                            <Textarea id="bio" defaultValue={profileData.bio} rows={4} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="specialties">Specialties (comma separated)</Label>
-                            <Input id="specialties" defaultValue={profileData.specialties.join(", ")} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="licenses">Licenses (comma separated)</Label>
-                            <Input id="licenses" defaultValue={profileData.licenses.join(", ")} />
-                          </div>
-                          <div className="flex justify-end">
-                            <Button>Save Profile</Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-6">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex items-center">
-                              <Mail className="h-5 w-5 mr-2 text-muted-foreground" />
-                              <span>{profileData.email}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <Phone className="h-5 w-5 mr-2 text-muted-foreground" />
-                              <span>{profileData.phone}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <MapPin className="h-5 w-5 mr-2 text-muted-foreground" />
-                              <span>{profileData.location}</span>
-                            </div>
-                            <div className="flex items-center">
-                              <Calendar className="h-5 w-5 mr-2 text-muted-foreground" />
-                              <span>{profileData.experience}</span>
-                            </div>
-                          </div>
-                          
-                          <div>
-                            <h3 className="text-lg font-medium mb-2">About Me</h3>
-                            <p className="text-gray-600">{profileData.bio}</p>
-                          </div>
-                          
-                          <div>
-                            <h3 className="text-lg font-medium mb-2">Specialties</h3>
-                            <div className="flex flex-wrap gap-2">
-                              {profileData.specialties.map((specialty, index) => (
-                                <span 
-                                  key={index} 
-                                  className="px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm"
-                                >
-                                  {specialty}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                          
-                          <div>
-                            <h3 className="text-lg font-medium mb-2">Licenses & Certifications</h3>
-                            <ul className="space-y-1">
-                              {profileData.licenses.map((license, index) => (
-                                <li key={index} className="flex items-center">
-                                  <Award className="h-4 w-4 mr-2 text-muted-foreground" />
-                                  <span>{license}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            
-            <div>
-              <Tabs defaultValue="listings">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="listings">
-                    {isOwnProfile ? "My Listings" : `${profileData.name.split(' ')[0]}'s Listings`}
-                  </TabsTrigger>
-                  <TabsTrigger value="activity">
-                    {isOwnProfile ? "Recent Activity" : "Activity"}
-                  </TabsTrigger>
-                  <TabsTrigger value="reviews">Reviews</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="listings" className="mt-6">
-                  {listings && listings.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {listings.map((listing) => (
-                        <PropertyCard key={listing.id} listing={listing} />
-                      ))}
-                    </div>
-                  ) : (
-                    <Card>
-                      <CardContent className="py-12 text-center">
-                        <Building className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium mb-2">No listings yet</h3>
-                        <p className="text-muted-foreground mb-6">
-                          {isOwnProfile 
-                            ? "You haven't created any listings yet" 
-                            : `${profileData.name} hasn't created any listings yet`}
-                        </p>
-                        {isOwnProfile && (
-                          <Button asChild>
-                            <a href="/listings/new">Create Your First Listing</a>
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
-                
-                <TabsContent value="activity" className="mt-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Recent Activity</CardTitle>
-                      <CardDescription>
-                        {isOwnProfile 
-                          ? "Your recent actions and notifications" 
-                          : `${profileData.name.split(' ')[0]}'s recent activity`}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-center py-6">
-                        <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium mb-2">No recent activity</h3>
-                        <p className="text-muted-foreground">
-                          {isOwnProfile
-                            ? "Your recent activities will be displayed here"
-                            : "No recent activities to display"}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-                
-                <TabsContent value="reviews" className="mt-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Client Reviews</CardTitle>
-                      <CardDescription>
-                        {isOwnProfile 
-                          ? "Feedback from your clients" 
-                          : `What clients say about ${profileData.name.split(' ')[0]}`}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-center py-6">
-                        <User className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-medium mb-2">No reviews yet</h3>
-                        <p className="text-muted-foreground">
-                          {isOwnProfile
-                            ? "Client reviews will appear here once you receive them"
-                            : `${profileData.name.split(' ')[0]} hasn't received any reviews yet`}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
-            </div>
-          </div>
-        </main>
+        {/* Render the selected template */}
+        <SelectedTemplate 
+          userData={profileData}
+          listings={listings}
+          theme={templateProps.theme}
+          isOwnProfile={isOwnProfile}
+        />
       </div>
     </div>
   );
