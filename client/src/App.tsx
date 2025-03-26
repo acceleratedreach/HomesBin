@@ -82,7 +82,16 @@ function AppRoutes() {
   }, [sessionData, sessionLoading, sessionError, location]);
   
   // Check if user is authenticated based on JWT token
-  const isAuthenticated = !!sessionData?.user || !!getToken();
+  const token = getToken();
+  const isAuthenticated = !!sessionData?.user || !!token;
+  
+  // Debug authentication state
+  console.log('Auth check in App.tsx:', { 
+    hasToken: !!token, 
+    tokenLength: token ? token.length : 0,
+    hasSessionUser: !!sessionData?.user,
+    isAuthenticated
+  });
   
   // Fetch user data if authenticated
   const { data: userData, isLoading: userLoading, error: userError, refetch: refetchUser } = useQuery<UserData>({

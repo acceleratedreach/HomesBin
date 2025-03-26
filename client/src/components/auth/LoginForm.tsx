@@ -14,9 +14,10 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, checkAuthentication } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { setToken } from "@/lib/authUtils";
 
 // Define the user data interface
 interface UserData {
@@ -48,8 +49,21 @@ export default function LoginForm() {
     try {
       setIsSubmitting(true);
       // Send login request to API
+      console.log('Submitting login request with values:', values);
       const loginResponse = await apiRequest('POST', '/api/auth/login', values);
       console.log('Login API response:', loginResponse);
+      
+      // Directly save the token ourselves to ensure it gets stored
+      if (loginResponse.token) {
+        console.log('Manually storing token from login response, length:', loginResponse.token.length);
+        setToken(loginResponse.token);
+        
+        // Verify token was stored
+        const storedToken = localStorage.getItem('auth_token');
+        console.log('Verified token in localStorage after setting:', storedToken ? 'Yes (length: ' + storedToken.length + ')' : 'No');
+      } else {
+        console.error('No token in login response!');
+      }
       
       // Show success message immediately
       toast({
@@ -57,21 +71,32 @@ export default function LoginForm() {
         description: "Redirecting to dashboard..."
       });
       
+      // Invalidate queries to refresh data
+      await queryClient.invalidateQueries();
+      
+      // Wait a moment to ensure token is stored
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Confirm authentication status
+      const isAuthenticated = await checkAuthentication();
+      console.log('Authentication check after login:', isAuthenticated);
+      
       // Simple approach: direct browser navigation with full page reload
       if (loginResponse?.user?.username) {
         const username = loginResponse.user.username;
         console.log('Login successful, username:', username);
-        
-        // Force a longer delay to ensure the session cookie is properly set
-        await new Promise(resolve => setTimeout(resolve, 800));
         
         try {
           // First try a standard redirect
           const dashboardUrl = `/${username}/dashboard`;
           console.log('Redirecting to:', dashboardUrl);
           
-          // Use window.location.replace for better navigation behavior
-          window.location.replace(dashboardUrl);
+          // Let's check if we have the token in local storage
+          const storedToken = localStorage.getItem('auth_token');
+          console.log('Token in localStorage before redirect:', storedToken ? 'Yes (length: ' + storedToken.length + ')' : 'No');
+          
+          // Use window.location for a more reliable redirect with a fresh state
+          window.location.href = dashboardUrl;
         } catch (navError) {
           console.error('Navigation error:', navError);
           // Fallback to a direct href change in case replace fails

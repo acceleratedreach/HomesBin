@@ -82,12 +82,31 @@ export async function apiRequest(method: string, endpoint: string, data?: any) {
     if (contentType && contentType.includes('application/json')) {
       const jsonData = await response.json();
       console.log(`Response from ${url}:`, jsonData);
+      
+      // Special handling for login and register endpoints that return tokens
+      if ((endpoint.includes('/login') || endpoint.includes('/register')) && jsonData.token) {
+        console.log('Token found in response, storing token...');
+        import('./authUtils').then(({ setToken }) => {
+          setToken(jsonData.token);
+        });
+      }
+      
       return jsonData;
     } else {
       // Handle non-JSON responses
       const text = await response.text();
       try {
-        return JSON.parse(text);
+        const jsonData = JSON.parse(text);
+        
+        // Special handling for login and register endpoints that return tokens
+        if ((endpoint.includes('/login') || endpoint.includes('/register')) && jsonData.token) {
+          console.log('Token found in response (text parsing), storing token...');
+          import('./authUtils').then(({ setToken }) => {
+            setToken(jsonData.token);
+          });
+        }
+        
+        return jsonData;
       } catch (e) {
         throw new Error(`Invalid JSON response: ${text}`);
       }
