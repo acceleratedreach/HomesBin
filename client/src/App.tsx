@@ -81,7 +81,11 @@ function AppRoutes() {
     // Check if trying to access a public route
     const isPublicRoute = PUBLIC_ROUTES.includes(location) || 
                           location.startsWith('/verify-email') ||
-                          location.startsWith('/profile/');
+                          location.startsWith('/profile/') ||
+                          // Allow direct /:username routes (agent profiles) to be accessed without login
+                          (location.startsWith('/') && 
+                           location.split('/').length === 2 && 
+                           !PUBLIC_ROUTES.includes(location));
     
     // If not authenticated and trying to access a protected route
     if (!isAuthenticated && !isPublicRoute) {
