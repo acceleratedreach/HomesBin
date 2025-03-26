@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, checkAuthentication } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
@@ -24,6 +24,7 @@ import VerifyEmail from "@/components/auth/VerifyEmail";
 import ResetPassword from "@/components/auth/ResetPassword";
 import ForgotPassword from "@/components/auth/ForgotPassword";
 import { useQuery } from "@tanstack/react-query";
+import { getToken } from "./lib/authUtils";
 
 interface UserData {
   id: number;
@@ -50,15 +51,15 @@ const PUBLIC_ROUTES = [
 function AppRoutes() {
   const [location, navigate] = useLocation();
   
-  // Fetch session data to determine authentication status
+  // Fetch session data to determine authentication status using JWT
   const { data: sessionData, isLoading: sessionLoading, error: sessionError, refetch: refetchSession } = useQuery<SessionData>({
     queryKey: ['/api/auth/session'],
     retry: 2,
     staleTime: 1000 * 60 * 5, // 5 minutes
-    refetchInterval: 10000, // Refetch every 10 seconds in case session changes
+    refetchInterval: 10000, // Refetch every 10 seconds in case token changes
   });
   
-  // Force refetch on first load
+  // Force refetch on first load and when token changes
   useEffect(() => {
     // Force refetch session data immediately when component mounts
     refetchSession();
@@ -80,8 +81,8 @@ function AppRoutes() {
     console.log('Current location:', location);
   }, [sessionData, sessionLoading, sessionError, location]);
   
-  // Check if user is authenticated based on session data
-  const isAuthenticated = !!sessionData?.user;
+  // Check if user is authenticated based on JWT token
+  const isAuthenticated = !!sessionData?.user || !!getToken();
   
   // Fetch user data if authenticated
   const { data: userData, isLoading: userLoading, error: userError, refetch: refetchUser } = useQuery<UserData>({

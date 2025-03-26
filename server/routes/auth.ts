@@ -164,4 +164,39 @@ router.post('/register', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/auth/logout
+ * Logout the user - with JWT this is primarily handled client-side
+ */
+router.post('/logout', async (req: Request, res: Response) => {
+  // With JWT, we don't need to do anything server-side for logout
+  // The client will remove the token
+  res.json({ message: 'Logged out successfully' });
+});
+
+/**
+ * GET /api/auth/session
+ * Return the current auth state based on JWT (for backwards compatibility)
+ */
+router.get('/session', authenticate(true), async (req: Request, res: Response) => {
+  // If user was set by authenticate middleware, they're authenticated
+  if (req.user) {
+    const user = await storage.getUser(req.user.id);
+    if (user) {
+      return res.json({
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          fullName: user.fullName
+        }
+      });
+    }
+  }
+  
+  // Not authenticated
+  return res.status(401).json({ message: 'Not authenticated' });
+});
+
 export default router;
