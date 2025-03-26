@@ -122,9 +122,8 @@ export function registerTestRoutes(app: Express, storage: IStorage) {
         // Store token in the same map that the actual reset feature uses
         passwordResetTokens.set(token, { userId: user.id, expires });
         
-        const resetUrl = `${process.env.NODE_ENV === 'production' 
-          ? (process.env.SITE_URL || 'https://homesbin.com') 
-          : 'https://' + process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'}/reset-password?token=${token}`;
+        // Always use homesbin.com domain for consistency
+        const resetUrl = `https://homesbin.com/reset-password?token=${token}`;
         
         res.json({
           message: 'Password reset token generated',
@@ -176,9 +175,8 @@ export function registerTestRoutes(app: Express, storage: IStorage) {
         // Generate verification token
         const token = await storage.generateVerificationToken(user.id);
         
-        // Generate site URL
-        const siteUrl = process.env.SITE_URL || `https://${req.get('host')}`;
-        const verificationUrl = `${siteUrl}/verify-email?token=${token}`;
+        // Always use homesbin.com domain for consistency
+        const verificationUrl = `https://homesbin.com/verify-email?token=${token}`;
         
         // Send verification email
         const emailSent = await mailService.send({

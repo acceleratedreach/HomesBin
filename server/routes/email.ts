@@ -17,10 +17,8 @@ if (process.env.SENDGRID_API_KEY) {
 
 // Email templates
 const getVerificationEmailTemplate = (token: string) => {
-  // Use the current host for verification URL rather than SITE_URL to work in Replit
-  const verificationUrl = `${process.env.NODE_ENV === 'production' 
-    ? (process.env.SITE_URL || 'https://homesbin.com') 
-    : 'https://' + process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'}/verify-email?token=${token}`;
+  // Always use homesbin.com domain for consistency
+  const verificationUrl = `https://homesbin.com/verify-email?token=${token}`;
   
   return {
     subject: 'Verify your HomesBin account',
@@ -44,10 +42,8 @@ const getVerificationEmailTemplate = (token: string) => {
 };
 
 const getPasswordResetTemplate = (token: string) => {
-  // Use the current host for reset URL rather than SITE_URL to work in Replit
-  const resetUrl = `${process.env.NODE_ENV === 'production' 
-    ? (process.env.SITE_URL || 'https://homesbin.com') 
-    : 'https://' + process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'}/reset-password?token=${token}`;
+  // Always use homesbin.com domain for consistency
+  const resetUrl = `https://homesbin.com/reset-password?token=${token}`;
   
   return {
     subject: 'Reset your HomesBin password',
@@ -88,9 +84,7 @@ const getWelcomeEmailTemplate = (user: User) => {
         </ul>
         <p>Get started by adding your first property listing!</p>
         <p>
-          <a href="${process.env.NODE_ENV === 'production' 
-            ? (process.env.SITE_URL || 'https://homesbin.com') 
-            : 'https://' + process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'}/listings/create" 
+          <a href="https://homesbin.com/listings/create" 
             style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
             Create Your First Listing
           </a>
