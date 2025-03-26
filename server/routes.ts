@@ -15,232 +15,25 @@ import {
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { z } from "zod";
-import session from "express-session";
-import passport from "passport";
-import { Strategy as LocalStrategy } from "passport-local";
-import MemoryStore from "memorystore";
 import { registerEmailRoutes } from "./routes/email";
 import { registerMarketingRoutes } from "./routes/marketing";
 import { registerThemeRoutes } from "./routes/theme";
 import { EmailService } from "./services/emailService";
-
-const SessionStore = MemoryStore(session);
+import authRouter from "./routes/auth";
+import { authenticate } from "./middleware/auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Session setup
-  app.use(
-    session({
-      secret: process.env.SESSION_SECRET || "homesbinsecret",
-      resave: false,
-      saveUninitialized: false,
-      store: new SessionStore({
-        checkPeriod: 86400000, // prune expired entries every 24h
-      }),
-      cookie: {
-        secure: false,
-        httpOnly: true,
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
-        sameSite: 'lax',
-        path: '/'
-      },
-    })
-  );
+  // Mount authentication router
+  app.use("/api/auth", authRouter);
 
-  // Log the cookie configuration
-  console.log("Session cookie configuration:", {
-    secure: false,
-    httpOnly: true,
-    maxAge: "24 hours",
-    sameSite: 'lax'
-  });
+  // Use our authenticate middleware from JWT implementation
+  const isAuthenticated = authenticate();
 
-  // Passport setup
-  app.use(passport.initialize());
-  app.use(passport.session());
-
-  passport.use(
-    new LocalStrategy(async (username, password, done) => {
-      try {
-        // Try to find the user by username first
-        let user = await storage.getUserByUsername(username);
-        
-        // If not found, try by email
-        if (!user) {
-          user = await storage.getUserByEmail(username);
-        }
-        
-        if (!user) {
-          return done(null, false, { message: "Incorrect username or email" });
-        }
-
-        // Check password using bcrypt
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-          return done(null, false, { message: "Incorrect password" });
-        }
-
-        return done(null, user);
-      } catch (err) {
-        return done(err);
-      }
-    })
-  );
-
-  passport.serializeUser((user: any, done) => {
-    done(null, user.id);
-  });
-
-  passport.deserializeUser(async (id: number, done) => {
-    try {
-      const user = await storage.getUser(id);
-      done(null, user);
-    } catch (err) {
-      done(err);
-    }
-  });
-
-  // Auth middleware
-  const isAuthenticated = (req: Request, res: Response, next: any) => {
-    if (req.isAuthenticated()) {
-      return next();
-    }
-    res.status(401).json({ message: "Unauthorized" });
-  };
-
-  // AUTH ROUTES
-  app.post("/api/auth/register", async (req, res) => {
-    try {
-      const userData = insertUserSchema.parse(req.body);
-      
-      // Check if user already exists
-      const existingUserByUsername = await storage.getUserByUsername(userData.username);
-      if (existingUserByUsername) {
-        return res.status(400).json({ message: "Username already exists" });
-      }
-      
-      const existingUserByEmail = await storage.getUserByEmail(userData.email);
-      if (existingUserByEmail) {
-        return res.status(400).json({ message: "Email already exists" });
-      }
-
-      // Hash password
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(userData.password, salt);
-
-      // Create new user with hashed password
-      const user = await storage.createUser({
-        ...userData,
-        password: hashedPassword
-      });
-      
-      // Generate verification token
-      const verificationToken = await storage.generateVerificationToken(user.id);
-      
-      // Send verification email
-      try {
-        await EmailService.sendVerificationEmail(user.email, verificationToken);
-        console.log(`Verification email sent to: ${user.email}`);
-      } catch (emailError) {
-        console.error("Failed to send verification email:", emailError);
-        // We'll continue even if email sending fails
-      }
-      
-      // Log the user in
-      req.login(user, (err) => {
-        if (err) {
-          return res.status(500).json({ message: "Error logging in after registration" });
-        }
-        return res.status(201).json({
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            emailVerified: user.emailVerified,
-            fullName: user.fullName
-          }
-        });
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid input data", errors: error.errors });
-      }
-      console.error("Registration error:", error);
-      res.status(500).json({ message: "Server error" });
-    }
-  });
-
-  app.post("/api/auth/login", passport.authenticate("local"), (req, res) => {
-    // Skip the session regeneration which is causing issues
-    // Log important debug information
-    console.log("🔍 Login successful - Session ID:", req.sessionID);
-    console.log("🔍 User authenticated:", req.isAuthenticated());
-    console.log("🔍 User info:", req.user);
-    
-    // Simply save the session to ensure it persists
-    req.session.save((err) => {
-      if (err) {
-        console.error("Session save error:", err);
-        return res.status(500).json({ message: "Session error" });
-      }
-      
-      console.log("🔍 Session saved with ID:", req.sessionID);
-      
-      const user: any = req.user;
-      res.json({
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          emailVerified: user.emailVerified,
-          fullName: user.fullName
-        }
-      });
-    });
-  });
-
-  app.post("/api/auth/logout", (req, res) => {
-    req.logout(() => {
-      res.json({ message: "Logged out successfully" });
-    });
-  });
-
-  app.get("/api/auth/session", (req, res) => {
-    console.log("🔍 Session endpoint called");
-    console.log("🔍 isAuthenticated:", req.isAuthenticated());
-    console.log("🔍 session id:", req.sessionID);
-    console.log("🔍 session cookie:", req.headers.cookie);
-    
-    // Implement a more detailed check for authentication
-    if (req.isAuthenticated() && req.user) {
-      const user: any = req.user;
-      console.log("🔍 User in session:", JSON.stringify(user, null, 2));
-      
-      // Ensure all critical fields are present
-      if (!user.id || !user.username) {
-        console.error("🔍 User object is invalid or incomplete:", user);
-        return res.status(401).json({ message: "Session data is invalid" });
-      }
-      
-      // Return the user data with minimal necessary information
-      return res.json({
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          emailVerified: user.emailVerified,
-          fullName: user.fullName
-        }
-      });
-    }
-    
-    console.log("🔍 No authenticated user found in session");
-    return res.status(401).json({ message: "Not authenticated" });
-  });
+  // Auth routes are handled by the auth router we imported
 
   // USER ROUTES
   app.get("/api/user", isAuthenticated, async (req, res) => {
     console.log("🔍 USER API endpoint called");
-    console.log("🔍 isAuthenticated:", req.isAuthenticated());
     
     try {
       const user: any = req.user;

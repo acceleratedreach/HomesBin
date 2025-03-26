@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { getToken } from "./authUtils";
 
 // Helper function to normalize API URLs
 function normalizeUrl(url: string): string {
@@ -14,6 +15,24 @@ async function throwIfResNotOk(res: Response) {
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
+}
+
+/**
+ * Add auth token to request headers if available
+ */
+function getAuthHeaders(): HeadersInit {
+  const token = getToken();
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest', // Add this to signal it's an AJAX request
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
 }
 
 export const queryClient = new QueryClient({
@@ -35,12 +54,7 @@ export async function apiRequest(method: string, endpoint: string, data?: any) {
     console.log(`Making ${method} request to ${url}`);
     const response = await fetch(url, {
       method,
-      credentials: 'include', // Always include credentials
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest', // Add this to signal it's an AJAX request
-      },
+      headers: getAuthHeaders(),
       body: data ? JSON.stringify(data) : undefined,
     });
 
@@ -48,13 +62,15 @@ export async function apiRequest(method: string, endpoint: string, data?: any) {
       const errorData = await response.json().catch(() => ({}));
       console.error(`API Request failed (${method} ${url}):`, errorData);
       
-      // Specially handle authentication errors
+      // Special handling for auth errors can be done in authUtils.ts
       if (response.status === 401) {
-        console.log('Authentication error, invalidating session cache');
-        queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
+        console.log('Authentication error');
       }
       
-      throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      throw {
+        status: response.status,
+        message: errorData.message || `HTTP error! status: ${response.status}`
+      };
     }
 
     // For 204 No Content responses, return null
@@ -66,13 +82,6 @@ export async function apiRequest(method: string, endpoint: string, data?: any) {
     if (contentType && contentType.includes('application/json')) {
       const jsonData = await response.json();
       console.log(`Response from ${url}:`, jsonData);
-      
-      // For authentication endpoints, invalidate session cache immediately
-      if (url.includes('/api/auth/')) {
-        console.log('Auth endpoint accessed, force refreshing auth state');
-        await queryClient.invalidateQueries();
-      }
-      
       return jsonData;
     } else {
       // Handle non-JSON responses
@@ -97,10 +106,7 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     const url = normalizeUrl(queryKey[0] as string);
     const res = await fetch(url, {
-      credentials: "include",
-      headers: {
-        'Accept': 'application/json',
-      },
+      headers: getAuthHeaders(),
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
@@ -110,7 +116,10 @@ export const getQueryFn: <T>(options: {
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       console.error(`Query failed (${url}):`, errorData);
-      throw new Error(errorData.message || res.statusText);
+      throw {
+        status: res.status,
+        message: errorData.message || res.statusText
+      };
     }
 
     return await res.json();
@@ -119,21 +128,8 @@ export const getQueryFn: <T>(options: {
 // Add a function to check if user is currently authenticated
 export async function checkAuthentication() {
   try {
-    const response = await fetch(normalizeUrl('/api/auth/session'), {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-      }
-    });
-    
-    if (!response.ok) {
-      return false;
-    }
-    
-    const data = await response.json();
-    return !!data?.user;
+    const token = getToken();
+    return !!token;
   } catch (error) {
     console.error('Authentication check failed:', error);
     return false;

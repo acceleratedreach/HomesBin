@@ -2,20 +2,36 @@ import { apiRequest } from "./queryClient";
 import { queryClient } from "./queryClient";
 import { User } from "@shared/schema";
 
+// Token storage key
+const TOKEN_KEY = 'auth_token';
+
+/**
+ * Get the stored auth token
+ */
+export const getToken = (): string | null => {
+  return localStorage.getItem(TOKEN_KEY);
+};
+
+/**
+ * Store the auth token
+ */
+export const setToken = (token: string): void => {
+  localStorage.setItem(TOKEN_KEY, token);
+};
+
+/**
+ * Remove the auth token
+ */
+export const removeToken = (): void => {
+  localStorage.removeItem(TOKEN_KEY);
+};
+
 /**
  * Check if the current user is authenticated
  * @returns True if the user is authenticated, false otherwise
  */
-export const isAuthenticated = async (): Promise<boolean> => {
-  try {
-    const data = await queryClient.fetchQuery({
-      queryKey: ['/api/auth/session'],
-      staleTime: 1000 * 60, // 1 minute
-    });
-    return !!data?.user;
-  } catch (error) {
-    return false;
-  }
+export const isAuthenticated = (): boolean => {
+  return !!getToken();
 };
 
 /**
@@ -23,13 +39,21 @@ export const isAuthenticated = async (): Promise<boolean> => {
  * @returns The user data or null if not authenticated
  */
 export const getCurrentUser = async (): Promise<User | null> => {
+  if (!isAuthenticated()) {
+    return null;
+  }
+  
   try {
     const data = await queryClient.fetchQuery({
-      queryKey: ['/api/user'],
+      queryKey: ['/api/auth/user'],
       staleTime: 1000 * 60, // 1 minute
     });
     return data || null;
   } catch (error) {
+    // If the token is invalid, clear it
+    if ((error as any)?.status === 401) {
+      removeToken();
+    }
     return null;
   }
 };
@@ -42,7 +66,15 @@ export const getCurrentUser = async (): Promise<User | null> => {
  */
 export const login = async (username: string, password: string): Promise<User> => {
   const response = await apiRequest('POST', '/api/auth/login', { username, password });
-  await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
+  
+  // Store the token
+  if (response.token) {
+    setToken(response.token);
+  }
+  
+  // Invalidate any existing queries
+  await queryClient.invalidateQueries();
+  
   return response.user;
 };
 
@@ -57,7 +89,15 @@ export const register = async (userData: {
   password: string;
 }): Promise<User> => {
   const response = await apiRequest('POST', '/api/auth/register', userData);
-  await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
+  
+  // Store the token
+  if (response.token) {
+    setToken(response.token);
+  }
+  
+  // Invalidate any existing queries
+  await queryClient.invalidateQueries();
+  
   return response.user;
 };
 
@@ -65,8 +105,11 @@ export const register = async (userData: {
  * Logout the current user
  */
 export const logout = async (): Promise<void> => {
-  await apiRequest('POST', '/api/auth/logout', {});
-  await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
+  // Simply remove the token
+  removeToken();
+  
+  // Invalidate queries that require authentication
+  await queryClient.invalidateQueries();
 };
 
 /**
