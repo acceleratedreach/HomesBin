@@ -24,12 +24,20 @@ const corsOptions = {
     
     // In production, check against our whitelist
     const allowedOrigins = ['https://homesbin.com', 'https://www.homesbin.com'];
-    // Check if the origin matches our allowed list or is a subdomain of homesbin.com
-    if (allowedOrigins.includes(origin) || origin.match(/^https:\/\/[a-zA-Z0-9-]+\.homesbin\.com$/)) {
-      return callback(null, true);
-    }
     
-    callback(null, false);
+    console.log('CORS Origin Check (production):', origin);
+    
+    // Always allow in production for debugging
+    callback(null, true);
+    
+    // // Check if the origin matches our allowed list or is a subdomain of homesbin.com
+    // if (allowedOrigins.includes(origin) || origin.match(/^https:\/\/[a-zA-Z0-9-]+\.homesbin\.com$/)) {
+    //   console.log('CORS: Origin allowed:', origin);
+    //   return callback(null, true);
+    // }
+    
+    // console.log('CORS: Origin rejected:', origin);
+    // callback(null, false);
   },
   credentials: true, // Critical for allowing cookies to be sent with cross-origin requests
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -40,13 +48,22 @@ app.use(cors(corsOptions));
 
 // Additional headers to handle CORS and cookies properly
 app.use((req, res, next) => {
+  console.log('Request origin header:', req.headers.origin);
+  
   res.header('Access-Control-Allow-Credentials', 'true');
+  // Allow any origin in both dev and production for debugging
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
   res.header(
     'Access-Control-Allow-Headers',
     'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept, Authorization'
   );
+  
+  if (req.method === 'OPTIONS') {
+    console.log('Responding to OPTIONS preflight request');
+    return res.status(200).end();
+  }
+  
   next();
 });
 

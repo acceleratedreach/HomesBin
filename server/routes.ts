@@ -80,23 +80,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   passport.serializeUser((user: any, done) => {
+    console.log('Serializing user:', user.id);
     done(null, user.id);
   });
 
   passport.deserializeUser(async (id: number, done) => {
     try {
+      console.log('Deserializing user ID:', id);
       const user = await storage.getUser(id);
+      
+      if (!user) {
+        console.log('No user found for ID:', id);
+        return done(null, false);
+      }
+      
+      console.log('User deserialized successfully:', user.id);
       done(null, user);
     } catch (err) {
+      console.error('Error deserializing user:', err);
       done(err);
     }
   });
 
   // Auth middleware
   const isAuthenticated = (req: Request, res: Response, next: any) => {
+    console.log('isAuthenticated middleware check:', req.isAuthenticated());
+    console.log('Request session ID:', req.sessionID);
+    console.log('Path:', req.path);
+    console.log('Cookies:', req.headers.cookie);
+    
     if (req.isAuthenticated()) {
       return next();
     }
+    console.log('401 Unauthorized - user not authenticated');
     res.status(401).json({ message: "Unauthorized" });
   };
 
@@ -163,6 +179,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/auth/login", (req, res, next) => {
+    console.log('Login attempt for username:', req.body.username);
+    console.log('Session before login:', req.session);
+    console.log('Cookies before login:', req.headers.cookie);
+    
     passport.authenticate("local", (err, user, info) => {
       if (err) {
         console.error("Login error:", err);
@@ -170,14 +190,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (!user) {
+        console.log('Authentication failed, no user returned');
         return res.status(401).json({ message: info?.message || "Authentication failed" });
       }
+      
+      console.log('User found:', user.id, user.username);
       
       req.login(user, (loginErr) => {
         if (loginErr) {
           console.error("Login session error:", loginErr);
           return res.status(500).json({ message: "Error creating login session" });
         }
+        
+        console.log('Login successful, session after login:', req.session);
+        console.log('isAuthenticated after login:', req.isAuthenticated());
+        console.log('Session ID after login:', req.sessionID);
         
         return res.json({
           user: {
@@ -199,8 +226,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/auth/session", (req, res) => {
+    console.log('Session check: isAuthenticated =', req.isAuthenticated());
+    console.log('Session object:', req.session);
+    console.log('Session ID:', req.sessionID);
+    console.log('Cookies:', req.headers.cookie);
+    
     if (req.isAuthenticated()) {
       const user: any = req.user;
+      console.log('User found in session:', user.id);
       return res.json({
         user: {
           id: user.id,
