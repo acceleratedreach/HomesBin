@@ -87,7 +87,7 @@ export function registerTestRoutes(app: Express, storage: IStorage) {
             id: user.id,
             username: user.username,
             email: user.email,
-            emailVerified: user.emailVerified
+            emailVerified: user.email_verified
           }
         });
       } else {
@@ -95,6 +95,76 @@ export function registerTestRoutes(app: Express, storage: IStorage) {
           authenticated: false,
           message: "Not authenticated"
         });
+      }
+    });
+    
+    // Test route to send verification email
+    app.get('/api/test/verify-email/:email', async (req: Request, res: Response) => {
+      try {
+        const email = req.params.email;
+        
+        // Find user by email
+        const user = await storage.getUserByEmail(email);
+        if (!user) {
+          return res.status(404).json({ message: 'User not found' });
+        }
+        
+        if (user.email_verified) {
+          return res.json({ message: 'Email is already verified' });
+        }
+        
+        // Generate verification token
+        const token = await storage.generateVerificationToken(user.id);
+        
+        // Generate site URL
+        const siteUrl = process.env.SITE_URL || `https://${req.get('host')}`;
+        const verificationUrl = `${siteUrl}/verify-email?token=${token}`;
+        
+        // Send verification email
+        const emailSent = await mailService.send({
+          to: email,
+          from: {
+            email: 'noreply@homesbin.com',
+            name: 'HomesBin'
+          },
+          subject: 'Verify Your Email Address',
+          text: `Please verify your email address by clicking on the following link: ${verificationUrl}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #4a6cf7;">Verify Your Email Address</h2>
+              <p>Thank you for signing up with HomesBin. To complete your registration, please verify your email address by clicking the button below:</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${verificationUrl}" 
+                  style="background-color: #4a6cf7; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; font-weight: bold;">
+                  Verify Email Address
+                </a>
+              </div>
+              <p>Or copy and paste the following URL into your browser:</p>
+              <p style="word-break: break-all; color: #666;">${verificationUrl}</p>
+              <p>If you did not sign up for HomesBin, please ignore this email.</p>
+            </div>
+          `,
+          trackingSettings: {
+            clickTracking: {
+              enable: true
+            },
+            openTracking: {
+              enable: true
+            }
+          }
+        });
+        
+        if (emailSent) {
+          res.json({ 
+            message: `Verification email sent to ${email}`,
+            verificationUrl // Included for testing purposes
+          });
+        } else {
+          res.status(500).json({ message: 'Failed to send verification email' });
+        }
+      } catch (error) {
+        console.error('Error in test verify-email route:', error);
+        res.status(500).json({ message: 'Server error' });
       }
     });
   }
