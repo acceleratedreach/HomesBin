@@ -1,12 +1,17 @@
 import { MailService } from '@sendgrid/mail';
 import { User, Listing } from '../../shared/schema';
 import crypto from 'crypto';
+import * as dotenv from 'dotenv';
+
+// Ensure environment variables are loaded
+dotenv.config();
 
 if (!process.env.SENDGRID_API_KEY) {
   console.error(`Error: SENDGRID_API_KEY environment variable is not set in ${process.env.NODE_ENV || 'current'} environment`);
   throw new Error("SENDGRID_API_KEY environment variable must be set");
 }
 
+// Check SITE_URL after dotenv is loaded
 if (!process.env.SITE_URL) {
   console.warn("Warning: SITE_URL environment variable is not set");
 }
