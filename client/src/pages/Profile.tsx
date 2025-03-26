@@ -98,18 +98,18 @@ export default function Profile({ username }: ProfileProps = {}) {
     enabled: !!displayUsername || !!sessionData?.user,
   });
   
-  // Use API data, falling back to defaults when needed
+  // If user data is available, use it; otherwise use minimal defaults (only for display purposes)
   const profileData = {
-    name: userData?.fullName || userData?.username || "Agent Name",
-    title: userData?.title || "Real Estate Professional",
-    phone: userData?.phone || "(555) 123-4567",
-    email: userData?.email || "agent@example.com",
-    location: userData?.location || "New York, NY",
-    bio: userData?.bio || "Licensed real estate agent with over 5 years of experience in luxury properties and new developments. I specialize in helping clients find their dream homes in the most desirable neighborhoods.",
-    specialties: userData?.specialties || ["Luxury Homes", "New Construction", "Investment Properties"],
-    experience: userData?.experience || "5+ years",
-    licenses: userData?.licenses || ["NY Real Estate License #12345"],
-    profileImage: userData?.profileImage || "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&h=200&q=80"
+    name: userData?.fullName || userData?.username || "",
+    title: userData?.title || "",
+    phone: userData?.phone || "",
+    email: userData?.email || "",
+    location: userData?.location || "",
+    bio: userData?.bio || "",
+    specialties: userData?.specialties || [],
+    experience: userData?.experience || "",
+    licenses: userData?.licenses || [],
+    profileImage: userData?.profileImage || ""
   };
   
   // Show loading state while data is being fetched

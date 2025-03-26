@@ -68,7 +68,7 @@ export default function ProfessionalTemplate({
       <div className="mb-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold" style={customStyles.heading}>
-            {isOwnProfile ? "My Profile" : `${userData.fullName || userData.username}'s Profile`}
+            {isOwnProfile ? "My Profile" : (userData.fullName || userData.username) ? `${userData.fullName || userData.username}'s Profile` : "Agent Profile"}
           </h1>
           {isOwnProfile && onEdit && (
             <Button variant="outline" onClick={onEdit} style={{ borderColor: theme.primaryColor, color: theme.primaryColor }}>
@@ -84,18 +84,24 @@ export default function ProfessionalTemplate({
               <div className="flex flex-col items-center">
                 <div className="relative">
                   <div className="w-32 h-32 rounded-full overflow-hidden" style={customStyles.profileImage}>
-                    <img 
-                      src={userData.profileImage || "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&h=200&q=80"} 
-                      alt={userData.fullName || userData.username} 
-                      className="w-full h-full object-cover"
-                    />
+                    {userData.profileImage ? (
+                      <img 
+                        src={userData.profileImage} 
+                        alt={userData.fullName || userData.username || "Agent profile"} 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                        <User className="h-12 w-12 text-gray-400" />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="mt-4 text-center">
                   <h2 className="text-xl font-bold" style={customStyles.heading}>
-                    {userData.fullName || userData.username}
+                    {userData.fullName || userData.username || "Agent Name"}
                   </h2>
-                  <p style={customStyles.subheading}>Real Estate Professional</p>
+                  <p style={customStyles.subheading}>{userData.title || "Real Estate Professional"}</p>
                 </div>
               </div>
               
@@ -199,7 +205,7 @@ export default function ProfessionalTemplate({
               <CardHeader>
                 <CardTitle style={customStyles.heading}>Featured Listings</CardTitle>
                 <CardDescription style={customStyles.subheading}>
-                  Properties represented by {isOwnProfile ? "me" : userData.fullName || userData.username}
+                  Properties represented by {isOwnProfile ? "me" : userData.fullName || userData.username || "this agent"}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -237,7 +243,7 @@ export default function ProfessionalTemplate({
               <CardHeader>
                 <CardTitle style={customStyles.heading}>Contact Information</CardTitle>
                 <CardDescription style={customStyles.subheading}>
-                  Get in touch with {isOwnProfile ? "me" : userData.fullName || userData.username}
+                  Get in touch with {isOwnProfile ? "me" : userData.fullName || userData.username || "this agent"}
                 </CardDescription>
               </CardHeader>
               <CardContent>

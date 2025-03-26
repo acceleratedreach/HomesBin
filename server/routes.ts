@@ -243,6 +243,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Server error" });
     }
   });
+  
+  // Get public listings for a user by username
+  app.get("/api/users/:username/listings", async (req, res) => {
+    try {
+      const { username } = req.params;
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Get only publicly visible listings
+      const listings = await storage.getListingsByUserId(user.id);
+      const publicListings = listings.filter(listing => listing.isPublic !== false);
+      
+      res.json(publicListings);
+    } catch (error) {
+      console.error("Error fetching user listings:", error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+  
+  // Get theme settings for a user by username (public)
+  app.get("/api/users/:username/theme", async (req, res) => {
+    try {
+      const { username } = req.params;
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const theme = await storage.getUserTheme(user.id);
+      
+      if (!theme) {
+        // Return default theme if none is set
+        return res.json({
+          primaryColor: "#4f46e5",
+          secondaryColor: "#10b981",
+          fontFamily: "Inter",
+          borderRadius: "medium",
+          darkMode: false,
+          template: "ProfessionalTemplate"
+        });
+      }
+      
+      res.json(theme);
+    } catch (error) {
+      console.error("Error fetching user theme:", error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
 
   app.patch("/api/user", isAuthenticated, async (req, res) => {
     try {
