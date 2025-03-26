@@ -157,6 +157,51 @@ export function registerTestRoutes(app: Express, storage: IStorage) {
       }
     });
     
+    // Add a test endpoint to create a reset token directly with a token value for testing
+    app.get('/api/test/create-reset-token', async (req: Request, res: Response) => {
+      try {
+        // Create a user if needed
+        const email = 'test@example.com';
+        let user = await storage.getUserByEmail(email);
+        
+        if (!user) {
+          user = await storage.createUser({
+            username: 'testuser',
+            email: email,
+            password: 'hashedpassword',
+            fullName: 'Test User',
+            emailVerified: false,
+          });
+        }
+        
+        // Create a token with known value for testing
+        const token = 'test-token-' + new Date().getTime();
+        const expires = new Date();
+        expires.setHours(expires.getHours() + 1);
+        
+        // Store in the passwordResetTokens map
+        passwordResetTokens.set(token, { userId: user.id, expires });
+        
+        // Return token info for testing
+        const resetUrl = `https://homesbin.com/reset-password?token=${token}`;
+        
+        console.log('Created test token:', token);
+        console.log('Current token count:', passwordResetTokens.size);
+        
+        res.json({
+          success: true,
+          token,
+          userId: user.id,
+          expires,
+          resetUrl,
+          tokenMapSize: passwordResetTokens.size
+        });
+      } catch (error) {
+        console.error('Error creating test token:', error);
+        res.status(500).json({ message: 'Server error', error: String(error) });
+      }
+    });
+    
     // Test route to send verification email
     app.get('/api/test/verify-email/:email', async (req: Request, res: Response) => {
       try {
