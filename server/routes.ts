@@ -158,17 +158,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/auth/login", passport.authenticate("local"), (req, res) => {
-    const user: any = req.user;
-    res.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        emailVerified: user.emailVerified,
-        fullName: user.fullName
+  app.post("/api/auth/login", (req, res, next) => {
+    passport.authenticate("local", (err, user, info) => {
+      if (err) {
+        console.error("Login error:", err);
+        return res.status(500).json({ message: "Server error" });
       }
-    });
+      
+      if (!user) {
+        return res.status(401).json({ message: info?.message || "Authentication failed" });
+      }
+      
+      req.login(user, (loginErr) => {
+        if (loginErr) {
+          console.error("Login session error:", loginErr);
+          return res.status(500).json({ message: "Error creating login session" });
+        }
+        
+        return res.json({
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            emailVerified: user.emailVerified,
+            fullName: user.fullName
+          }
+        });
+      });
+    })(req, res, next);
   });
 
   app.post("/api/auth/logout", (req, res) => {
