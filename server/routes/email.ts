@@ -16,7 +16,10 @@ if (process.env.SENDGRID_API_KEY) {
 
 // Email templates
 const getVerificationEmailTemplate = (token: string) => {
-  const verificationUrl = `${process.env.SITE_URL || 'http://localhost:5000'}/verify-email?token=${token}`;
+  // Use the current host for verification URL rather than SITE_URL to work in Replit
+  const verificationUrl = `${process.env.NODE_ENV === 'production' 
+    ? (process.env.SITE_URL || 'https://homesbin.com') 
+    : 'https://' + process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'}/verify-email?token=${token}`;
   
   return {
     subject: 'Verify your HomesBin account',
@@ -40,7 +43,10 @@ const getVerificationEmailTemplate = (token: string) => {
 };
 
 const getPasswordResetTemplate = (token: string) => {
-  const resetUrl = `${process.env.SITE_URL || 'http://localhost:5000'}/reset-password?token=${token}`;
+  // Use the current host for reset URL rather than SITE_URL to work in Replit
+  const resetUrl = `${process.env.NODE_ENV === 'production' 
+    ? (process.env.SITE_URL || 'https://homesbin.com') 
+    : 'https://' + process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'}/reset-password?token=${token}`;
   
   return {
     subject: 'Reset your HomesBin password',
@@ -81,7 +87,10 @@ const getWelcomeEmailTemplate = (user: User) => {
         </ul>
         <p>Get started by adding your first property listing!</p>
         <p>
-          <a href="${process.env.SITE_URL || 'http://localhost:5000'}/listings/create" style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
+          <a href="${process.env.NODE_ENV === 'production' 
+            ? (process.env.SITE_URL || 'https://homesbin.com') 
+            : 'https://' + process.env.REPL_SLUG + '.' + process.env.REPL_OWNER + '.repl.co'}/listings/create" 
+            style="display: inline-block; background-color: #4a6cf7; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">
             Create Your First Listing
           </a>
         </p>
