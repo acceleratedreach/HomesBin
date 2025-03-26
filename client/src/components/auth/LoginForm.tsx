@@ -64,18 +64,19 @@ export default function LoginForm() {
       console.log('User data response:', userData);
       
       // Redirect based on email verification status
-      if (userData && userData.username) {
-        console.log('Username available:', userData.username);
+      const user = userData as UserData;
+      if (user && user.username) {
+        console.log('Username available:', user.username);
         // Check if email is verified
-        if (userData.emailVerified) {
+        if (user.emailVerified) {
           // Email is verified, go to dashboard
-          setLocation(`/${userData.username}/dashboard`);
+          setLocation(`/${user.username}/dashboard`);
         } else {
           // Email not verified, go to settings page
-          setLocation(`/${userData.username}/settings`);
+          setLocation(`/${user.username}/settings`);
         }
       } else {
-        console.error('Username not available in user data:', userData);
+        console.error('Username not available in user data:', user);
         // Fallback to standard dashboard route
         setLocation('/dashboard');
       }
