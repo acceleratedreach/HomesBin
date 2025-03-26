@@ -212,6 +212,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       licenses: user.licenses
     });
   });
+  
+  // Get public user profile by username
+  app.get("/api/users/:username", async (req, res) => {
+    try {
+      const { username } = req.params;
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Return public profile data (excluding sensitive info)
+      res.json({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        profileImage: user.profileImage,
+        title: user.title,
+        phone: user.phone,
+        location: user.location,
+        experience: user.experience,
+        bio: user.bio,
+        specialties: user.specialties,
+        licenses: user.licenses
+      });
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
 
   app.patch("/api/user", isAuthenticated, async (req, res) => {
     try {
@@ -250,6 +281,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const updatedUser = await storage.updateUser(user.id, updateData);
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
       res.json({
         id: updatedUser.id,
         username: updatedUser.username,

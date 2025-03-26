@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
+import { useEffect } from "react";
 import Header from "@/components/layout/Header";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
 import { Button } from "@/components/ui/button";
@@ -40,12 +41,19 @@ interface ThemeSettings {
 }
 
 export default function Profile({ username }: ProfileProps = {}) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   
   // Get current user session
   const { data: sessionData } = useQuery<{ user: UserData }>({
     queryKey: ['/api/auth/session'],
   });
+  
+  // If no username is provided and the user is not logged in, redirect to login
+  useEffect(() => {
+    if (!username && !sessionData?.user) {
+      navigate('/login');
+    }
+  }, [username, sessionData, navigate]);
   
   // Determine the username to display (from props or current user)
   const displayUsername = username || sessionData?.user?.username;

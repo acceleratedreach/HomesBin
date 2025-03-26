@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { useParams, useLocation } from "wouter";
 import Header from "@/components/layout/Header";
 import DashboardSidebar from "@/components/layout/Sidebar";
