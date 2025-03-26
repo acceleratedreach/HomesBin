@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { randomBytes } from 'crypto';
 import { MailService } from '@sendgrid/mail';
 import { User } from '@shared/schema';
+import bcrypt from 'bcryptjs';
 
 // Initialize SendGrid
 const mailService = new MailService();
@@ -141,11 +142,12 @@ const passwordResetTokens = new Map<string, { userId: number, expires: Date }>()
 // Clean up expired tokens periodically
 setInterval(() => {
   const now = new Date();
-  for (const [token, { expires }] of passwordResetTokens.entries()) {
+  // Use Array.from to avoid TypeScript iteration issues
+  Array.from(passwordResetTokens.entries()).forEach(([token, { expires }]) => {
     if (expires < now) {
       passwordResetTokens.delete(token);
     }
-  }
+  });
 }, 60 * 60 * 1000); // Run every hour
 
 export function registerEmailRoutes(app: Express, storage: IStorage) {
@@ -283,7 +285,6 @@ export function registerEmailRoutes(app: Express, storage: IStorage) {
       }
 
       // Update user password
-      const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash(password, 10);
       
       await storage.updateUser(user.id, { password: hashedPassword });
