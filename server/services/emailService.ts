@@ -182,7 +182,7 @@ export class EmailService {
       '{listing.price}': listing.price ? `$${listing.price.toLocaleString()}` : '',
       '{listing.bedrooms}': listing.bedrooms?.toString() || '',
       '{listing.bathrooms}': listing.bathrooms?.toString() || '',
-      '{listing.sqft}': listing.sqft?.toLocaleString() || '',
+      '{listing.sqft}': listing.squareFootage?.toLocaleString() || listing.sqft?.toLocaleString() || '',
       '{listing.description}': listing.description || '',
       '{listing.status}': listing.status || '',
       '{listing.type}': listing.propertyType || '',

@@ -109,7 +109,7 @@ export function registerTestRoutes(app: Express, storage: IStorage) {
           return res.status(404).json({ message: 'User not found' });
         }
         
-        if (user.email_verified) {
+        if (user.emailVerified) {
           return res.json({ message: 'Email is already verified' });
         }
         
