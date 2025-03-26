@@ -308,6 +308,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ];
       const updateData: any = {};
       
+      // Make sure we preserve the email verification status unless the email is changed
+      updateData.emailVerified = user.emailVerified;
+      
       for (const field of allowedFields) {
         if (req.body[field] !== undefined) {
           updateData[field] = req.body[field];

@@ -68,7 +68,7 @@ export default function ProfessionalTemplate({
       <div className="mb-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold" style={customStyles.heading}>
-            {isOwnProfile ? "My Profile" : (userData.fullName || userData.username) ? `${userData.fullName || userData.username}'s Profile` : "Agent Profile"}
+            {isOwnProfile ? "My Profile" : (userData.fullName || userData.username) ? `${userData.fullName || userData.username}'s Profile` : "Profile"}
           </h1>
           {isOwnProfile && onEdit && (
             <Button variant="outline" onClick={onEdit} style={{ borderColor: theme.primaryColor, color: theme.primaryColor }}>
@@ -99,7 +99,7 @@ export default function ProfessionalTemplate({
                 </div>
                 <div className="mt-4 text-center">
                   <h2 className="text-xl font-bold" style={customStyles.heading}>
-                    {userData.fullName || userData.username || "Agent Name"}
+                    {userData.fullName || userData.username || "Real Estate Professional"}
                   </h2>
                   <p style={customStyles.subheading}>{userData.title || "Real Estate Professional"}</p>
                 </div>
