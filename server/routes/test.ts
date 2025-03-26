@@ -2,6 +2,7 @@ import { Express, Request, Response } from 'express';
 import { IStorage } from '../storage';
 import { randomBytes } from 'crypto';
 import { MailService } from '@sendgrid/mail';
+import * as bcrypt from 'bcryptjs';
 // Import passwordResetTokens from email routes
 import { passwordResetTokens } from './email';
 
@@ -170,7 +171,7 @@ export function registerTestRoutes(app: Express, storage: IStorage) {
             email: email,
             password: 'hashedpassword',
             fullName: 'Test User',
-            emailVerified: false,
+            // emailVerified is handled separately in the database
           });
         }
         
@@ -199,6 +200,84 @@ export function registerTestRoutes(app: Express, storage: IStorage) {
       } catch (error) {
         console.error('Error creating test token:', error);
         res.status(500).json({ message: 'Server error', error: String(error) });
+      }
+    });
+    
+    // Test the full password reset flow (create token -> reset password -> check result)
+    app.get('/api/test/reset-flow', async (req: Request, res: Response) => {
+      try {
+        // Create a known test user if it doesn't exist
+        const email = 'resetflow@example.com';
+        const originalPassword = 'original-password';
+        const newPassword = 'new-password-' + new Date().getTime().toString().slice(-4);
+        
+        // Create or get test user
+        let user = await storage.getUserByEmail(email);
+        const hashedOriginalPassword = await bcrypt.hash(originalPassword, 10);
+        
+        if (!user) {
+          user = await storage.createUser({
+            username: 'resetflow',
+            email: email,
+            password: hashedOriginalPassword,
+            fullName: 'Reset Flow User',
+          });
+          
+          // After creating user, update the emailVerified flag in database
+          await storage.updateUser(user.id, { emailVerified: true });
+          console.log('Created test user for reset flow:', user.id);
+        } else {
+          // Make sure password is set to original
+          await storage.updateUser(user.id, { password: hashedOriginalPassword });
+          console.log('Updated existing user password for reset flow:', user.id);
+        }
+        
+        // Create reset token
+        const token = 'flow-test-token-' + new Date().getTime();
+        const expires = new Date();
+        expires.setHours(expires.getHours() + 1);
+        
+        // Store token in map
+        console.log('Creating reset token:', token, 'for user:', user.id);
+        passwordResetTokens.set(token, { userId: user.id, expires });
+        
+        // Reset password using token
+        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+        await storage.updateUser(user.id, { password: hashedNewPassword });
+        
+        // Remove used token
+        passwordResetTokens.delete(token);
+        
+        // Attempt to verify both passwords
+        const originalMatch = await bcrypt.compare(originalPassword, hashedOriginalPassword);
+        const newMatch = await bcrypt.compare(newPassword, hashedNewPassword);
+        
+        res.json({
+          success: true,
+          user: {
+            id: user.id,
+            email: user.email,
+            username: user.username
+          },
+          test: {
+            originalPassword,
+            newPassword,
+            originalMatch,
+            newMatch
+          },
+          token: {
+            value: token,
+            expires
+          },
+          instructionsForTesting: `To test the reset flow in the UI, go to: /reset-password?token=${token}`
+        });
+      } catch (error) {
+        console.error('Error testing reset flow:', error);
+        res.status(500).json({ 
+          message: 'Server error', 
+          error: String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        });
       }
     });
     
