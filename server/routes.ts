@@ -37,11 +37,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         checkPeriod: 86400000, // prune expired entries every 24h
       }),
       cookie: {
-        secure: process.env.NODE_ENV === "production",
+        secure: false,
+        httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        sameSite: 'lax',
+        path: '/'
       },
     })
   );
+
+  // Log the cookie configuration
+  console.log("Session cookie configuration:", {
+    secure: false,
+    httpOnly: true,
+    maxAge: "24 hours",
+    sameSite: 'lax'
+  });
 
   // Passport setup
   app.use(passport.initialize());
@@ -159,15 +170,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/auth/login", passport.authenticate("local"), (req, res) => {
-    const user: any = req.user;
-    res.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        emailVerified: user.emailVerified,
-        fullName: user.fullName
+    // Skip the session regeneration which is causing issues
+    // Log important debug information
+    console.log("🔍 Login successful - Session ID:", req.sessionID);
+    console.log("🔍 User authenticated:", req.isAuthenticated());
+    console.log("🔍 User info:", req.user);
+    
+    // Simply save the session to ensure it persists
+    req.session.save((err) => {
+      if (err) {
+        console.error("Session save error:", err);
+        return res.status(500).json({ message: "Session error" });
       }
+      
+      console.log("🔍 Session saved with ID:", req.sessionID);
+      
+      const user: any = req.user;
+      res.json({
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          fullName: user.fullName
+        }
+      });
     });
   });
 
@@ -178,8 +205,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/auth/session", (req, res) => {
-    if (req.isAuthenticated()) {
+    console.log("🔍 Session endpoint called");
+    console.log("🔍 isAuthenticated:", req.isAuthenticated());
+    console.log("🔍 session id:", req.sessionID);
+    console.log("🔍 session cookie:", req.headers.cookie);
+    
+    // Implement a more detailed check for authentication
+    if (req.isAuthenticated() && req.user) {
       const user: any = req.user;
+      console.log("🔍 User in session:", JSON.stringify(user, null, 2));
+      
+      // Ensure all critical fields are present
+      if (!user.id || !user.username) {
+        console.error("🔍 User object is invalid or incomplete:", user);
+        return res.status(401).json({ message: "Session data is invalid" });
+      }
+      
+      // Return the user data with minimal necessary information
       return res.json({
         user: {
           id: user.id,
@@ -190,27 +232,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     }
+    
+    console.log("🔍 No authenticated user found in session");
     return res.status(401).json({ message: "Not authenticated" });
   });
 
   // USER ROUTES
   app.get("/api/user", isAuthenticated, async (req, res) => {
-    const user: any = req.user;
-    res.json({
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      emailVerified: user.emailVerified,
-      fullName: user.fullName,
-      profileImage: user.profileImage,
-      title: user.title,
-      phone: user.phone,
-      location: user.location,
-      experience: user.experience,
-      bio: user.bio,
-      specialties: user.specialties,
-      licenses: user.licenses
-    });
+    console.log("🔍 USER API endpoint called");
+    console.log("🔍 isAuthenticated:", req.isAuthenticated());
+    
+    try {
+      const user: any = req.user;
+      console.log("🔍 User from req.user:", JSON.stringify(user, null, 2));
+      
+      if (!user || !user.id) {
+        console.error("🔍 Invalid user object:", user);
+        return res.status(401).json({ message: "Invalid user data" });
+      }
+      
+      res.json({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        fullName: user.fullName,
+        profileImage: user.profileImage,
+        title: user.title,
+        phone: user.phone,
+        location: user.location,
+        experience: user.experience,
+        bio: user.bio,
+        specialties: user.specialties,
+        licenses: user.licenses
+      });
+    } catch (error) {
+      console.error("🔍 Error in /api/user endpoint:", error);
+      res.status(500).json({ message: "Server error getting user data" });
+    }
   });
   
   // Get public user profile by username

@@ -48,45 +48,41 @@ export default function LoginForm() {
     try {
       setIsSubmitting(true);
       // Send login request to API
-      await apiRequest('POST', '/api/auth/login', values);
+      const loginResponse = await apiRequest('POST', '/api/auth/login', values);
+      console.log('Login API response:', loginResponse);
       
-      // Invalidate auth queries to refresh data
-      await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/user'] });
-      
-      console.log('Login successful, redirecting to dashboard');
-      
-      // Wait a bit for the session to update
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Get user data after login
-      const userData = await apiRequest('GET', '/api/user');
-      console.log('User data response:', userData);
-      
-      // Redirect based on email verification status
-      const user = userData as UserData;
-      if (user && user.username) {
-        console.log('Username available:', user.username);
-        // Check if email is verified
-        if (user.emailVerified) {
-          // Email is verified, go to dashboard
-          setLocation(`/${user.username}/dashboard`);
-        } else {
-          // Email not verified, go to settings page
-          setLocation(`/${user.username}/settings`);
-        }
-      } else {
-        console.error('Username not available in user data:', user);
-        // Fallback to standard dashboard route
-        setLocation('/dashboard');
-      }
-      
-      // Display success message
+      // Show success message immediately
       toast({
         title: "Login successful",
-        description: "Welcome back to HomesBin!"
+        description: "Redirecting to dashboard..."
       });
+      
+      // Simple approach: direct browser navigation with full page reload
+      if (loginResponse?.user?.username) {
+        const username = loginResponse.user.username;
+        console.log('Login successful, username:', username);
+        
+        // Force a longer delay to ensure the session cookie is properly set
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        try {
+          // First try a standard redirect
+          const dashboardUrl = `/${username}/dashboard`;
+          console.log('Redirecting to:', dashboardUrl);
+          
+          // Use window.location.replace for better navigation behavior
+          window.location.replace(dashboardUrl);
+        } catch (navError) {
+          console.error('Navigation error:', navError);
+          // Fallback to a direct href change in case replace fails
+          window.location.href = `/${username}/dashboard`;
+        }
+      } else {
+        console.error('Missing user information in login response');
+        throw new Error('Invalid login response');
+      }
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Login failed",
         description: error.message || "Invalid username or password. Please try again.",

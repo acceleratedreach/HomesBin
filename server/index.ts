@@ -1,8 +1,23 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import cors from "cors";
 
 const app = express();
+
+// Add CORS configuration to handle cookie issues
+app.use(cors({
+  origin: true, // Reflect the request origin
+  credentials: true // Allow cookies to be sent
+}));
+
+// Set necessary headers for cookie-based auth
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -33,6 +48,14 @@ app.use((req, res, next) => {
     }
   });
 
+  next();
+});
+
+// Log cookies for debugging
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/auth/')) {
+    console.log('🍪 Cookies received:', req.headers.cookie);
+  }
   next();
 });
 

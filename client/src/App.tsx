@@ -51,49 +51,130 @@ function AppRoutes() {
   const [location, navigate] = useLocation();
   
   // Fetch session data to determine authentication status
-  const { data: sessionData, isLoading: sessionLoading } = useQuery<SessionData>({
+  const { data: sessionData, isLoading: sessionLoading, error: sessionError, refetch: refetchSession } = useQuery<SessionData>({
     queryKey: ['/api/auth/session'],
-    retry: false,
-    staleTime: 1000 * 60 * 5 // 5 minutes
+    retry: 2,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchInterval: 10000, // Refetch every 10 seconds in case session changes
   });
+  
+  // Force refetch on first load
+  useEffect(() => {
+    // Force refetch session data immediately when component mounts
+    refetchSession();
+    
+    // Also set an interval to check auth status periodically
+    const interval = setInterval(() => {
+      console.log('Periodic session check');
+      refetchSession();
+    }, 10000);
+    
+    return () => clearInterval(interval);
+  }, [refetchSession]);
+  
+  // Add debugging logs
+  useEffect(() => {
+    console.log('Session data updated in App.tsx:', sessionData);
+    console.log('Session loading:', sessionLoading);
+    console.log('Session error:', sessionError);
+    console.log('Current location:', location);
+  }, [sessionData, sessionLoading, sessionError, location]);
   
   // Check if user is authenticated based on session data
   const isAuthenticated = !!sessionData?.user;
   
   // Fetch user data if authenticated
-  const { data: userData, isLoading: userLoading } = useQuery<UserData>({
+  const { data: userData, isLoading: userLoading, error: userError, refetch: refetchUser } = useQuery<UserData>({
     queryKey: ['/api/user'],
     enabled: isAuthenticated,
-    staleTime: 1000 * 60 * 5 // 5 minutes
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchInterval: 30000, // Refetch every 30 seconds
+    retry: 2,
   });
+  
+  // Refetch user data when session changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      refetchUser();
+    }
+  }, [isAuthenticated, refetchUser]);
+  
+  // Add debugging logs for user data
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('User data updated in App.tsx:', userData);
+      console.log('User loading:', userLoading);
+      console.log('User error:', userError);
+    }
+  }, [userData, userLoading, userError, isAuthenticated]);
   
   // Get current user information
   const currentUser = userData || sessionData?.user;
   
   // Handle authentication-based redirects
   useEffect(() => {
-    // Don't redirect from root path - allow users to see landing page even when authenticated
-    if (location === '/') return;
-    
-    // If loading, wait for data before making routing decisions
+    // Don't do anything while session data is loading
     if (sessionLoading) return;
     
-    // Check if trying to access a public route
+    // Log redirection status
+    console.log('Auth check:', { 
+      isAuthenticated, 
+      location,
+      currentUser: currentUser?.username,
+      isLoading: sessionLoading || userLoading
+    });
+    
+    // Special case: direct navigation to a user-specific URL pattern like /:username/dashboard
+    const userPathMatch = location.match(/^\/([^\/]+)\/([^\/]+)/);
+    if (userPathMatch) {
+      const [, usernameFromPath, section] = userPathMatch;
+      
+      // If authenticated and the username in URL doesn't match, redirect
+      if (isAuthenticated && currentUser?.username && 
+          usernameFromPath !== currentUser.username) {
+        // Check if the path is a valid section for redirecting
+        const validSections = ['dashboard', 'settings', 'listings', 'email-marketing', 
+                              'social-content', 'listing-graphics', 'lot-maps', 'theme'];
+        
+        if (validSections.includes(section)) {
+          const correctPath = `/${currentUser.username}/${section}`;
+          console.log(`URL username mismatch, redirecting from ${location} to ${correctPath}`);
+          navigate(correctPath, { replace: true });
+          return;
+        }
+      }
+      
+      // If an authenticated user hits a user-specific path that isn't their own,
+      // and we're not already redirecting to their correct path, continue...
+      // We'll handle this in the route rendering instead for better user experience
+    }
+    
+    // Normal public/protected route logic
     const isPublicRoute = PUBLIC_ROUTES.includes(location) || 
                           location.startsWith('/verify-email') ||
                           location.startsWith('/profile/');
     
+    // If trying to access login/register page while authenticated, redirect to dashboard
+    if (isAuthenticated && (location === '/login' || location === '/register')) {
+      const dashboardUrl = `/${currentUser?.username}/dashboard`;
+      console.log(`Already authenticated, redirecting to ${dashboardUrl}`);
+      navigate(dashboardUrl, { replace: true });
+      return;
+    }
+    
     // If not authenticated and trying to access a protected route
     if (!isAuthenticated && !isPublicRoute) {
+      console.log('Not authenticated, redirecting to login');
       navigate('/login', { replace: true });
       return;
     }
     
-    // If authenticated but accessing a non-username route, redirect to the username-specific route
-    if (isAuthenticated && currentUser?.username && !sessionLoading && !userLoading) {
+    // Handle redirection for user-specific paths without username prefix
+    // e.g. /dashboard should redirect to /:username/dashboard
+    if (isAuthenticated && currentUser?.username && !location.startsWith(`/${currentUser.username}`)) {
       // List of path prefixes that should be username-specific
       const userSpecificPrefixes = ['/dashboard', '/settings', '/listings', '/email-marketing', 
-                                   '/social-content', '/listing-graphics', '/lot-maps', '/theme'];
+                                  '/social-content', '/listing-graphics', '/lot-maps', '/theme'];
       
       // Check if current path matches any of these prefixes exactly
       const shouldRedirect = userSpecificPrefixes.some(prefix => 
@@ -109,7 +190,9 @@ function AppRoutes() {
         
         if (matchedPrefix) {
           const restOfPath = location === matchedPrefix ? '' : location.substring(matchedPrefix.length);
-          navigate(`/${currentUser.username}${matchedPrefix}${restOfPath}`, { replace: true });
+          const newPath = `/${currentUser.username}${matchedPrefix}${restOfPath}`;
+          console.log(`Redirecting to user-specific path: ${newPath}`);
+          navigate(newPath, { replace: true });
         }
       }
     }
