@@ -60,7 +60,7 @@ export default function LoginForm() {
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Get user data after login
-      const userData = await apiRequest('GET', '/api/user') as UserData;
+      const userData = await apiRequest('GET', '/api/user');
       console.log('User data response:', userData);
       
       // Redirect based on email verification status

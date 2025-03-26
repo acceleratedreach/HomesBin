@@ -92,7 +92,7 @@ export default function ModernTemplate({
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="flex flex-col md:flex-row items-center mb-6 md:mb-0">
               <img 
-                src={userData.profileImage || "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&h=200&q=80"} 
+                src={userData.profileImage || "/assets/default-profile.jpg"} 
                 alt={userData.fullName || userData.username} 
                 style={customStyles.profileImage}
                 className="mb-4 md:mb-0 md:mr-6"

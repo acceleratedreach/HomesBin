@@ -200,7 +200,7 @@ export default function VibrantTemplate({
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col items-center text-center">
               <img 
-                src={userData.profileImage || "https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=200&h=200&q=80"} 
+                src={userData.profileImage || "/assets/default-profile.jpg"} 
                 alt={userData.fullName || userData.username} 
                 style={customStyles.profileImage}
                 className="mb-6"
