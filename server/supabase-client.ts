@@ -13,10 +13,73 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Create a single supabase client for the server
-export const supabase = createClient(
-  supabaseUrl || '',
-  supabaseAnonKey || ''
-);
+// Define a type for our mock Supabase client
+type MockSupabaseClient = {
+  from: (table: string) => {
+    select: (columns?: string) => {
+      eq: (column: string, value: any) => {
+        single: () => Promise<{ data: any | null, error: any | null }>;
+        limit: (n: number) => {
+          order: (column: string, options?: any) => Promise<{ data: any[], error: any | null }>;
+        };
+      };
+      order: (column: string, options?: any) => Promise<{ data: any[], error: any | null }>;
+      limit: (n: number) => {
+        order: (column: string, options?: any) => Promise<{ data: any[], error: any | null }>;
+      };
+    };
+  };
+  auth: {
+    signUp: (credentials: any) => Promise<{ data: any | null, error: any | null }>;
+    signIn: (credentials: any) => Promise<{ data: any | null, error: any | null }>;
+    signOut: () => Promise<{ error: any | null }>;
+  };
+};
+
+let supabase: ReturnType<typeof createClient> | MockSupabaseClient;
+
+try {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('Using mock Supabase client as credentials are missing');
+    // Create a mock client that won't throw errors
+    supabase = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            single: async () => ({ data: null, error: null }),
+            limit: () => ({
+              order: () => ({ data: [], error: null })
+            })
+          }),
+          order: () => ({ data: [], error: null }),
+          limit: () => ({
+            order: () => ({ data: [], error: null })
+          })
+        })
+      }),
+      auth: {
+        signUp: async () => ({ data: null, error: null }),
+        signIn: async () => ({ data: null, error: null }),
+        signOut: async () => ({ error: null })
+      }
+    } as MockSupabaseClient;
+  } else {
+    supabase = createClient(
+      supabaseUrl,
+      supabaseAnonKey
+    );
+  }
+} catch (error) {
+  console.error('Failed to initialize Supabase client:', error);
+  // Create a minimal mock client
+  supabase = { 
+    from: () => ({ 
+      select: () => ({ data: [], error: null }) 
+    })
+  } as unknown as MockSupabaseClient;
+}
+
+export { supabase };
 
 /**
  * A service class for Supabase operations on the server side

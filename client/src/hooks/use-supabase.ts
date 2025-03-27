@@ -33,6 +33,10 @@ export function useSupabase(table: string) {
         pageSize
       }),
       enabled: options.enabled !== false,
+      retry: 1,
+      retryDelay: 1000,
+      staleTime: 30000,
+      gcTime: 60000,
     });
   };
 
@@ -42,6 +46,10 @@ export function useSupabase(table: string) {
       queryKey: [table, id],
       queryFn: () => fetchOneFromSupabase(table, id as string | number),
       enabled: !!id && options.enabled !== false,
+      retry: 1,
+      retryDelay: 1000,
+      staleTime: 30000,
+      gcTime: 60000,
     });
   };
 
