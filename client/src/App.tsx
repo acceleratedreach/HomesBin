@@ -23,10 +23,11 @@ import PublicLotMapViewer from "@/pages/lotmap/PublicLotMapViewer";
 import VerifyEmail from "@/components/auth/VerifyEmail";
 import ResetPassword from "@/components/auth/ResetPassword";
 import ForgotPassword from "@/components/auth/ForgotPassword";
+import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthContext";
 import { useQuery } from "@tanstack/react-query";
 
 interface UserData {
-  id: number;
+  id: string;
   username: string;
   email: string;
   emailVerified?: boolean;
@@ -49,26 +50,23 @@ const PUBLIC_ROUTES = [
 
 function AppRoutes() {
   const [location, navigate] = useLocation();
+  const { user, isAuthenticated, loading: authLoading } = useSupabaseAuth();
   
-  // Fetch session data to determine authentication status
-  const { data: sessionData, isLoading: sessionLoading } = useQuery<SessionData>({
-    queryKey: ['/api/auth/session'],
-    retry: false,
-    staleTime: 1000 * 60 * 5 // 5 minutes
-  });
-  
-  // Check if user is authenticated based on session data
-  const isAuthenticated = !!sessionData?.user;
-  
-  // Fetch user data if authenticated
+  // Fetch additional user profile data from Supabase if authenticated
   const { data: userData, isLoading: userLoading } = useQuery<UserData>({
-    queryKey: ['/api/user'],
-    enabled: isAuthenticated,
+    queryKey: ['/api/supabase/profiles', user?.id],
+    enabled: isAuthenticated && !!user?.id,
     staleTime: 1000 * 60 * 5 // 5 minutes
   });
   
-  // Get current user information
-  const currentUser = userData || sessionData?.user;
+  // Get current user information (combine auth user with profile data)
+  const currentUser = userData || (user ? {
+    id: user.id,
+    email: user.email || '',
+    username: user.user_metadata?.username || user.email?.split('@')[0] || '',
+    fullName: user.user_metadata?.full_name || '',
+    emailVerified: user.email_confirmed_at ? true : false
+  } : undefined);
   
   // Handle authentication-based redirects
   useEffect(() => {
@@ -76,7 +74,7 @@ function AppRoutes() {
     if (location === '/') return;
     
     // If loading, wait for data before making routing decisions
-    if (sessionLoading) return;
+    if (authLoading) return;
     
     // Check if trying to access a public route
     const isPublicRoute = PUBLIC_ROUTES.includes(location) || 
@@ -90,7 +88,7 @@ function AppRoutes() {
     }
     
     // If authenticated but accessing a non-username route, redirect to the username-specific route
-    if (isAuthenticated && currentUser?.username && !sessionLoading && !userLoading) {
+    if (isAuthenticated && currentUser?.username && !authLoading && !userLoading) {
       // List of path prefixes that should be username-specific
       const userSpecificPrefixes = ['/dashboard', '/settings', '/listings', '/email-marketing', 
                                    '/social-content', '/listing-graphics', '/lot-maps', '/theme'];
@@ -113,7 +111,7 @@ function AppRoutes() {
         }
       }
     }
-  }, [isAuthenticated, location, sessionLoading, userLoading, currentUser, navigate]);
+  }, [isAuthenticated, location, authLoading, userLoading, currentUser, navigate]);
 
   return (
     <Switch>
@@ -296,8 +294,10 @@ function AppRoutes() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppRoutes />
-      <Toaster />
+      <SupabaseAuthProvider>
+        <AppRoutes />
+        <Toaster />
+      </SupabaseAuthProvider>
     </QueryClientProvider>
   );
 }

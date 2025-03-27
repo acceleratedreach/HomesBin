@@ -25,13 +25,22 @@ try {
         })
       }),
       auth: {
+        getSession: async () => ({ data: { session: null }, error: null }),
+        getUser: async () => ({ data: { user: null }, error: null }),
         signUp: async () => ({ data: null, error: null }),
-        signIn: async () => ({ data: null, error: null }),
-        signOut: async () => ({ error: null })
+        signInWithPassword: async () => ({ data: null, error: null }),
+        signOut: async () => ({ error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } }, error: null })
       }
     } as any;
   } else {
-    supabase = createClient(supabaseUrl, supabaseAnonKey);
+    supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    });
   }
 } catch (error) {
   console.error('Failed to initialize Supabase client:', error);

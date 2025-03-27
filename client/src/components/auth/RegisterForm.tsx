@@ -14,9 +14,10 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { insertToSupabase } from "@/lib/supabase";
 
 const formSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters").max(50),
@@ -32,6 +33,7 @@ export default function RegisterForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { signUp } = useSupabaseAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -47,20 +49,37 @@ export default function RegisterForm() {
     try {
       setIsSubmitting(true);
       const { confirmPassword, ...registerData } = values;
-      const response = await apiRequest('POST', '/api/auth/register', registerData);
-      await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
       
-      // Redirect to user-specific dashboard
-      if (response && typeof response === 'object' && 'user' in response && 
-          response.user && typeof response.user === 'object' && 
-          'username' in response.user && response.user.username) {
-        console.log('Registration successful, redirecting to:', `/${response.user.username}/dashboard`);
-        setLocation(`/${response.user.username}/dashboard`);
-      } else {
-        console.log('Registration successful using fallback username:', values.username);
-        // Use the username from the form as fallback
-        setLocation(`/${values.username}/dashboard`);
+      // Sign up with Supabase
+      const { error } = await signUp(registerData.email, registerData.password, {
+        username: registerData.username,
+        full_name: "", // Can be updated later in profile settings
+      });
+      
+      if (error) {
+        throw new Error(error.message || "Registration failed");
       }
+      
+      // Create profile record in Supabase profiles table
+      try {
+        await insertToSupabase('profiles', {
+          email: registerData.email,
+          username: registerData.username,
+          full_name: "",
+          bio: "",
+          avatar_url: "",
+        });
+      } catch (profileError) {
+        console.error('Failed to create profile record:', profileError);
+        // Continue with registration even if profile creation fails
+        // The profile can be created later
+      }
+      
+      // Invalidate queries to refresh data
+      await queryClient.invalidateQueries({ queryKey: ['/api/supabase/profiles'] });
+      
+      // Redirect to login page since Supabase requires email verification
+      setLocation('/login');
       
       toast({
         title: "Registration successful",

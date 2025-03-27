@@ -14,27 +14,31 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 
 // Define the user data interface
 interface UserData {
-  id: number;
+  id: string;
   username: string;
   email: string;
   emailVerified?: boolean;
 }
 
 const formSchema = z.object({
-  username: z.string().min(1, "Username or email is required"),
-  password: z.string().min(1, "Password is required"),
+  username: z.string().min(1, "Username or email is required")
+    .refine(val => val.includes('@') || val.length >= 3, {
+      message: "Enter a valid email or username",
+    }),
+  password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { signIn, user } = useSupabaseAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -47,36 +51,43 @@ export default function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       setIsSubmitting(true);
-      // Send login request to API
-      await apiRequest('POST', '/api/auth/login', values);
       
-      // Invalidate auth queries to refresh data
-      await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      // Determine if input is email or username
+      const isEmail = values.username.includes('@');
+      const email = isEmail ? values.username : `${values.username}@example.com`;
+      
+      // Sign in with Supabase
+      const { error } = await signIn(email, values.password);
+      
+      if (error) {
+        throw new Error(error.message || "Login failed");
+      }
+      
+      // Invalidate queries to refresh data
+      await queryClient.invalidateQueries({ queryKey: ['/api/supabase/profiles'] });
       
       console.log('Login successful, redirecting to dashboard');
       
       // Wait a bit for the session to update
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
-      // Get user data after login
-      const response = await apiRequest('GET', '/api/user');
-      const userData = await response.json() as UserData;
-      console.log('User data response:', userData);
+      // Get username from user metadata or email
+      const username = user?.user_metadata?.username || email.split('@')[0];
+      const emailVerified = !!user?.email_confirmed_at;
       
       // Redirect based on email verification status
-      if (userData && userData.username) {
-        console.log('Username available:', userData.username);
+      if (username) {
+        console.log('Username available:', username);
         // Check if email is verified
-        if (userData.emailVerified) {
+        if (emailVerified) {
           // Email is verified, go to dashboard
-          setLocation(`/${userData.username}/dashboard`);
+          setLocation(`/${username}/dashboard`);
         } else {
           // Email not verified, go to settings page
-          setLocation(`/${userData.username}/settings`);
+          setLocation(`/${username}/settings`);
         }
       } else {
-        console.error('Username not available in user data:', userData);
+        console.error('Username not available in user data');
         // Fallback to standard dashboard route
         setLocation('/dashboard');
       }

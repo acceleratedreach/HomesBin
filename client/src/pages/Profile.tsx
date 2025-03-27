@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, Link } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Header from "@/components/layout/Header";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
 import { Button } from "@/components/ui/button";
@@ -12,13 +12,15 @@ import { ProfessionalTemplate, ModernTemplate, VibrantTemplate } from "@/compone
 import { ProfileTemplateProps } from "@/components/profile/templates";
 import SupabaseProfileData from "@/components/profile/SupabaseProfileData";
 import SupabaseExample from "@/components/supabase/SupabaseExample";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { fetchFromSupabase } from "@/lib/supabase";
 
 interface ProfileProps {
   username?: string;
 }
 
 interface UserData {
-  id: number;
+  id: number | string;
   username: string;
   email: string;
   fullName?: string;
@@ -44,38 +46,61 @@ interface ThemeSettings {
 
 export default function Profile({ username }: ProfileProps = {}) {
   const [location, navigate] = useLocation();
+  const { user, isAuthenticated } = useSupabaseAuth();
   
-  // Get current user session
-  const { data: sessionData } = useQuery<{ user: UserData }>({
-    queryKey: ['/api/auth/session'],
+  // Determine the username to display (from props or current user)
+  const displayUsername = username || user?.user_metadata?.username || user?.email?.split('@')[0];
+  
+  // Get user profile data from Supabase
+  const { data: profileData, isLoading: loadingUserData } = useQuery({
+    queryKey: ['/api/supabase/profiles', displayUsername],
+    queryFn: async () => {
+      try {
+        const data = await fetchFromSupabase('profiles', {
+          filters: { username: displayUsername }
+        });
+        return data?.[0] || null;
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+        return null;
+      }
+    },
+    enabled: !!displayUsername,
   });
+  
+  // Construct the user data object from Supabase profile data
+  const userData: UserData = profileData ? {
+    id: profileData.id || user?.id || '',
+    username: profileData.username || displayUsername || '',
+    email: profileData.email || user?.email || '',
+    fullName: profileData.full_name || user?.user_metadata?.full_name || '',
+    emailVerified: !!user?.email_confirmed_at,
+    profileImage: profileData.avatar_url || '',
+    title: profileData.title || '',
+    phone: profileData.phone || '',
+    location: profileData.location || '',
+    experience: profileData.experience || '',
+    bio: profileData.bio || '',
+    specialties: Array.isArray(profileData.specialties) ? profileData.specialties : [],
+    licenses: Array.isArray(profileData.licenses) ? profileData.licenses : [],
+  } : {
+    id: user?.id || '',
+    username: displayUsername || '',
+    email: user?.email || '',
+    emailVerified: !!user?.email_confirmed_at,
+  };
   
   // If no username is provided and the user is not logged in, redirect to login
   useEffect(() => {
-    if (!username && !sessionData?.user) {
+    if (!username && !isAuthenticated) {
       navigate('/login');
     }
-  }, [username, sessionData, navigate]);
-  
-  // Determine the username to display (from props or current user)
-  const displayUsername = username || sessionData?.user?.username;
-  
-  // Fetch user data based on which profile we're viewing
-  const { data: userData, isLoading: loadingUserData } = useQuery<UserData>({
-    queryKey: displayUsername ? 
-      (displayUsername !== sessionData?.user?.username ? 
-        [`/api/users/${displayUsername}`] : 
-        ['/api/user']
-      ) : ['/api/user'],
-    enabled: !!displayUsername || !!sessionData?.user,
-  });
+  }, [username, isAuthenticated, navigate]);
   
   // Fetch theme settings for this user
   const { data: themeSettings, isLoading: loadingTheme } = useQuery<ThemeSettings>({
-    queryKey: displayUsername ? 
-      [`/api/users/${displayUsername}/theme`] : 
-      ['/api/user/theme'],
-    enabled: !!displayUsername || !!sessionData?.user,
+    queryKey: ['/api/supabase/user_themes', userData.id],
+    enabled: !!userData.id,
     // Default theme settings if none are set
     placeholderData: {
       primaryColor: "#4f46e5",
@@ -88,20 +113,27 @@ export default function Profile({ username }: ProfileProps = {}) {
   });
   
   // Determine if this is the user's own profile
-  const isOwnProfile = sessionData?.user && 
-                       userData && 
-                       sessionData.user.username === userData.username;
+  const isOwnProfile = user && userData && 
+                      (user.id === userData.id || user.email === userData.email);
   
-  // Get listings for the profile
-  const { data: listings = [] } = useQuery<any[]>({
-    queryKey: displayUsername ? 
-      [`/api/users/${displayUsername}/listings`] : 
-      ['/api/listings'],
-    enabled: !!displayUsername || !!sessionData?.user,
+  // Get listings for the profile from Supabase
+  const { data: listings = [] } = useQuery({
+    queryKey: ['/api/supabase/listings', userData.id],
+    queryFn: async () => {
+      try {
+        return await fetchFromSupabase('listings', {
+          filters: { user_id: userData.id }
+        });
+      } catch (error) {
+        console.error('Error fetching listings:', error);
+        return [];
+      }
+    },
+    enabled: !!userData.id,
   });
   
   // If user data is available, use it; otherwise use minimal defaults (only for display purposes)
-  const profileData = {
+  const profileInfo = {
     name: userData?.fullName || userData?.username || "",
     title: userData?.title || "",
     phone: userData?.phone || "",
@@ -118,7 +150,7 @@ export default function Profile({ username }: ProfileProps = {}) {
   if (loadingUserData || loadingTheme) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Header isAuthenticated={!!sessionData?.user} />
+        <Header isAuthenticated={isAuthenticated} />
         <div className="flex-grow flex items-center justify-center">
           <p>Loading profile information...</p>
         </div>
@@ -128,8 +160,21 @@ export default function Profile({ username }: ProfileProps = {}) {
   
   // Prepare template props
   const templateProps: ProfileTemplateProps = {
-    userData: profileData,
-    listings: listings,
+    userData: {
+      id: userData?.id?.toString(),
+      username: userData?.username || '',
+      fullName: userData?.fullName || '',
+      email: userData?.email || '',
+      phone: userData?.phone || '',
+      profileImage: userData?.profileImage || '',
+      bio: userData?.bio || '',
+      location: userData?.location || '',
+      experience: userData?.experience || '',
+      specialties: userData?.specialties || [],
+      licenses: userData?.licenses || [],
+      title: userData?.title || ''
+    },
+    listings: listings || [],
     theme: {
       primaryColor: themeSettings?.primaryColor || "#4f46e5",
       colorMode: themeSettings?.darkMode ? 'dark' : 'light',
@@ -141,7 +186,7 @@ export default function Profile({ username }: ProfileProps = {}) {
       contactFormEnabled: true,
       featuredListingsLayout: 'grid'
     },
-    isOwnProfile: isOwnProfile
+    isOwnProfile: isOwnProfile || false
   };
   
   // Select the appropriate template component based on theme settings
@@ -164,25 +209,25 @@ export default function Profile({ username }: ProfileProps = {}) {
   
   return (
     <div className="min-h-screen flex flex-col">
-      <Header isAuthenticated={!!sessionData?.user} />
+      <Header isAuthenticated={isAuthenticated} />
       
       <div className="flex-grow">
         {isOwnProfile && <EmailVerificationAlert />}
         
         {/* Render the selected template */}
         <SelectedTemplate 
-          userData={profileData}
-          listings={listings}
+          userData={templateProps.userData}
+          listings={templateProps.listings}
           theme={templateProps.theme}
-          isOwnProfile={isOwnProfile}
+          isOwnProfile={templateProps.isOwnProfile}
         />
         
         {/* Show Supabase Profile Data for own profile */}
         {isOwnProfile && userData?.id && (
           <div className="container max-w-7xl mx-auto mt-8 px-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <SupabaseProfileData userId={userData.id} />
-              <SupabaseExample userId={userData.id} />
+              <SupabaseProfileData userId={userData.id.toString()} />
+              <SupabaseExample userId={Number(userData.id)} />
             </div>
           </div>
         )}

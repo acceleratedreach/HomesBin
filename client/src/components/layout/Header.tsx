@@ -1,35 +1,60 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { Home } from "lucide-react";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { fetchFromSupabase } from "@/lib/supabase";
 
 interface HeaderProps {
   isAuthenticated?: boolean;
 }
 
-export default function Header({ isAuthenticated }: HeaderProps) {
+export default function Header({ isAuthenticated: propIsAuthenticated }: HeaderProps) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { signOut, user, isAuthenticated } = useSupabaseAuth();
+  
+  // Use auth from context if available, otherwise from props
+  const authStatus = isAuthenticated !== undefined ? isAuthenticated : propIsAuthenticated;
 
-  const { data: userData } = useQuery({
-    queryKey: ['/api/user'],
-    enabled: !!isAuthenticated,
+  // Get user profile data from Supabase profiles table
+  const { data: profileData } = useQuery({
+    queryKey: ['/api/supabase/profiles', user?.id],
+    queryFn: async () => {
+      try {
+        const data = await fetchFromSupabase('profiles', {
+          filters: { id: user?.id }
+        });
+        return data?.[0] || null;
+      } catch (error) {
+        console.error('Error fetching profile data:', error);
+        return null;
+      }
+    },
+    enabled: !!authStatus && !!user?.id,
   });
+
+  // Get user info by combining auth user and profile data
+  const userData = {
+    id: user?.id,
+    email: user?.email,
+    username: profileData?.username || user?.user_metadata?.username || user?.email?.split('@')[0],
+    emailVerified: !!user?.email_confirmed_at,
+    fullName: profileData?.full_name || user?.user_metadata?.full_name
+  };
 
   const handleLogout = async () => {
     try {
-      await apiRequest('POST', '/api/auth/logout', {});
+      const { error } = await signOut();
+      
+      if (error) {
+        throw new Error(error.message || 'Failed to sign out');
+      }
       
       // Clear all auth-related queries from cache
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/listings'] });
-      
-      // Force a reset of the session data
-      queryClient.setQueryData(['/api/auth/session'], null);
+      queryClient.invalidateQueries({ queryKey: ['/api/supabase/profiles'] });
       
       // Redirect to login page
       setLocation('/login');
@@ -38,10 +63,10 @@ export default function Header({ isAuthenticated }: HeaderProps) {
         title: "Logged out successfully",
         description: "You have been logged out of your account",
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to log out. Please try again.",
+        description: error.message || "Failed to log out. Please try again.",
         variant: "destructive",
       });
     }
@@ -61,7 +86,7 @@ export default function Header({ isAuthenticated }: HeaderProps) {
           </Link>
         </div>
         <div className="flex items-center space-x-3">
-          {isAuthenticated ? (
+          {authStatus ? (
             <>
               <Button asChild variant="default" className="bg-blue-500 hover:bg-blue-600 rounded-md">
                 <Link href={userData?.username ? `/${userData.username}/dashboard` : "/dashboard"}>Dashboard</Link>
