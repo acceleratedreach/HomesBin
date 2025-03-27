@@ -69,6 +69,9 @@ export default function Header({ isAuthenticated }: HeaderProps) {
               <Button asChild variant="outline" className="text-blue-500 border-blue-500">
                 <Link href={userData?.username ? `/profile/${userData.username}` : "/profile"}>My Profile</Link>
               </Button>
+              <Button asChild variant="ghost" className="text-primary">
+                <Link href="/settings">Settings</Link>
+              </Button>
               <Button variant="ghost" onClick={handleLogout} className="text-gray-600">
                 Logout
               </Button>

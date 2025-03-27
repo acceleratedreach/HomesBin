@@ -10,6 +10,8 @@ import { User, Mail, Phone, MapPin, Award, Calendar, Building } from "lucide-rea
 import PropertyCard from "@/components/dashboard/PropertyCard";
 import { ProfessionalTemplate, ModernTemplate, VibrantTemplate } from "@/components/profile/templates";
 import { ProfileTemplateProps } from "@/components/profile/templates";
+import SupabaseProfileData from "@/components/profile/SupabaseProfileData";
+import SupabaseExample from "@/components/supabase/SupabaseExample";
 
 interface ProfileProps {
   username?: string;
@@ -174,6 +176,16 @@ export default function Profile({ username }: ProfileProps = {}) {
           theme={templateProps.theme}
           isOwnProfile={isOwnProfile}
         />
+        
+        {/* Show Supabase Profile Data for own profile */}
+        {isOwnProfile && userData?.id && (
+          <div className="container max-w-7xl mx-auto mt-8 px-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <SupabaseProfileData userId={userData.id} />
+              <SupabaseExample userId={userData.id} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
