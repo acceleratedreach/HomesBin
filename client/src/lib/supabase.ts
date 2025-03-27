@@ -1,52 +1,93 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
+// Initialize with a placeholder to avoid TypeScript errors
 let supabase: ReturnType<typeof createClient>;
 
-try {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('Missing Supabase credentials. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY environment variables.');
-    // Create a mock client for development that won't throw errors
-    supabase = {
-      from: () => ({
-        select: () => ({
-          eq: () => ({
-            single: async () => ({ data: null, error: null }),
-            range: () => ({
-              order: () => ({ data: [], error: null })
-            })
-          }),
-          range: () => ({
+// Create a mock client for development that won't throw errors
+const createMockClient = () => {
+  return {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          single: async () => ({ data: null, error: null }),
+          limit: () => ({
             order: () => ({ data: [], error: null })
-          }),
+          })
+        }),
+        order: () => ({ data: [], error: null }),
+        limit: () => ({
           order: () => ({ data: [], error: null })
         })
-      }),
-      auth: {
-        getSession: async () => ({ data: { session: null }, error: null }),
-        getUser: async () => ({ data: { user: null }, error: null }),
-        signUp: async () => ({ data: null, error: null }),
-        signInWithPassword: async () => ({ data: null, error: null }),
-        signOut: async () => ({ error: null }),
-        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } }, error: null })
+      })
+    }),
+    auth: {
+      getSession: async () => ({ data: { session: null }, error: null }),
+      getUser: async () => ({ data: { user: null }, error: null }),
+      signUp: async () => ({ data: null, error: null }),
+      signInWithPassword: async () => ({ data: null, error: null }),
+      signOut: async () => ({ error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } }, error: null })
+    }
+  } as any;
+};
+
+// Initialize with mock client that will be replaced after fetching config
+supabase = createMockClient();
+
+// Fetch configuration from server
+async function initializeSupabase() {
+  try {
+    // Prioritize config from server-side API
+    try {
+      const response = await fetch('/api/config');
+      if (response.ok) {
+        const config = await response.json();
+        if (config?.supabase?.url && config?.supabase?.key) {
+          console.log('Supabase configuration loaded from server API');
+          
+          // Create the actual client
+          supabase = createClient(config.supabase.url, config.supabase.key, {
+            auth: {
+              persistSession: true,
+              autoRefreshToken: true,
+              detectSessionInUrl: true
+            }
+          });
+          
+          console.log('Supabase client initialized successfully with API config');
+          return;
+        }
       }
-    } as any;
-  } else {
-    supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
-      }
-    });
+    } catch (apiError) {
+      console.error('Error fetching config from API:', apiError);
+    }
+
+    // Fallback to environment variables
+    const envSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const envSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (envSupabaseUrl && envSupabaseKey) {
+      supabase = createClient(envSupabaseUrl, envSupabaseKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      });
+      
+      console.log('Supabase client initialized with environment variables');
+      return;
+    }
+    
+    console.error('Missing Supabase credentials from both API and environment');
+  } catch (error) {
+    console.error('Failed to initialize Supabase client:', error);
+    supabase = createMockClient();
   }
-} catch (error) {
-  console.error('Failed to initialize Supabase client:', error);
-  // Create a minimal mock client
-  supabase = { from: () => ({ select: () => ({ data: [], error: null }) }) } as any;
 }
+
+// Start the initialization process
+initializeSupabase();
 
 export { supabase };
 

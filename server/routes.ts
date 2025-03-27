@@ -28,6 +28,15 @@ import { EmailService } from "./services/emailService";
 const SessionStore = MemoryStore(session);
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Add endpoint to provide Supabase credentials to the client
+  app.get('/api/config', (req, res) => {
+    res.json({
+      supabase: {
+        url: process.env.SUPABASE_URL || '',
+        key: process.env.SUPABASE_ANON_KEY || ''
+      }
+    });
+  });
   // Session setup
   app.use(
     session({
