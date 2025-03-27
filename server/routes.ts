@@ -23,6 +23,7 @@ import { registerEmailRoutes } from "./routes/email";
 import { registerMarketingRoutes } from "./routes/marketing";
 import { registerThemeRoutes } from "./routes/theme";
 import { registerSupabaseRoutes } from "./routes/supabase";
+import { registerAuthRoutes } from "./routes/auth";
 import { EmailService } from "./services/emailService";
 
 const SessionStore = MemoryStore(session);
@@ -774,6 +775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerMarketingRoutes(app, storage);
   registerThemeRoutes(app, storage);
   registerSupabaseRoutes(app);
+  registerAuthRoutes(app);
 
   // Set up site URL if not set - used in email links
   if (!process.env.SITE_URL) {

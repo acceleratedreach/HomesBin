@@ -50,6 +50,8 @@ export default function RegisterForm() {
       setIsSubmitting(true);
       const { confirmPassword, ...registerData } = values;
       
+      console.log('Registering user with email:', registerData.email);
+      
       // Sign up with Supabase
       const { error } = await signUp(registerData.email, registerData.password, {
         username: registerData.username,
@@ -57,11 +59,49 @@ export default function RegisterForm() {
       });
       
       if (error) {
+        console.error('Supabase registration error:', error);
         throw new Error(error.message || "Registration failed");
       }
       
-      // No need to manually create profile - this is handled by Supabase trigger
-      // Just invalidate queries to refresh data
+      console.log('Registration with Supabase successful');
+      
+      // Create a profile manually as backup in case trigger doesn't work
+      try {
+        // Wait a moment to allow Supabase to process the signup
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Check if profile was automatically created
+        const response = await fetch(`/api/supabase/profiles?username=${encodeURIComponent(registerData.username)}`);
+        const existingProfiles = await response.json();
+        
+        if (!existingProfiles || existingProfiles.length === 0) {
+          console.log('No profile found after registration, creating manually');
+          
+          // Profile wasn't created automatically, create it manually
+          await fetch('/api/supabase/profiles', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              username: registerData.username,
+              email: registerData.email,
+              full_name: "",
+              bio: "",
+              avatar_url: "",
+            }),
+          });
+          
+          console.log('Manual profile creation completed');
+        } else {
+          console.log('Profile was created automatically');
+        }
+      } catch (profileError) {
+        // Just log the error but continue with the registration flow
+        console.error('Failed to verify/create profile:', profileError);
+      }
+      
+      // Invalidate queries to refresh data
       await queryClient.invalidateQueries({ queryKey: ['/api/supabase/profiles'] });
       
       // Redirect to login page since Supabase requires email verification
@@ -72,6 +112,7 @@ export default function RegisterForm() {
         description: "Welcome to HomesBin! Please check your email to verify your account.",
       });
     } catch (error: any) {
+      console.error('Registration error:', error);
       toast({
         title: "Registration failed",
         description: error.message || "There was an error creating your account. Please try again.",

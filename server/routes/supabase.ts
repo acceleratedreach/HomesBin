@@ -15,17 +15,55 @@ declare module 'express-session' {
 }
 
 export function registerSupabaseRoutes(app: Express) {
+  // This endpoint specifically for profiles doesn't require authentication
+  // to let users look up emails by username for login
+  app.get('/api/supabase/profiles', async (req: Request, res: Response) => {
+    try {
+      const { username, email, ...otherFilters } = req.query;
+      
+      // Build filters object based on provided query parameters
+      const filters: Record<string, any> = {};
+      
+      // Only specific fields can be used for lookup
+      if (username) {
+        filters.username = username;
+      }
+      
+      if (email) {
+        filters.email = email;
+      }
+      
+      // Specify fields that can be returned for security
+      const selectFields = 'id, username, email, full_name';
+      
+      const data = await SupabaseService.getAll('profiles', {
+        select: selectFields,
+        filters
+      });
+      
+      res.status(200).json(data);
+    } catch (error: any) {
+      console.error('Error looking up profiles in Supabase:', error);
+      res.status(500).json({ 
+        message: 'Server error',
+        error: error.message 
+      });
+    }
+  });
+  
   /**
    * Generic endpoint to fetch data from a Supabase table
    */
   app.get('/api/supabase/:tableName', async (req: Request, res: Response) => {
     try {
-      // Check if user is authenticated
-      if (!req.session.user) {
+      // Skip auth check for public tables
+      const publicTables = ['profiles', 'public_listings'];
+      const { tableName } = req.params;
+      
+      if (!publicTables.includes(tableName) && !req.session.user) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
 
-      const { tableName } = req.params;
       const {
         select,
         orderBy,

@@ -52,15 +52,43 @@ export default function LoginForm() {
     try {
       setIsSubmitting(true);
       
-      // Determine if input is email or username
+      // Get email and password from form
       const isEmail = values.username.includes('@');
-      const email = isEmail ? values.username : `${values.username}@example.com`;
       
-      // Sign in with Supabase
-      const { error } = await signIn(email, values.password);
-      
-      if (error) {
-        throw new Error(error.message || "Login failed");
+      // If it's not an email, we need to look up the email associated with the username
+      if (!isEmail) {
+        try {
+          // First, try to find the user by username to get their email
+          console.log('Looking up email for username:', values.username);
+          
+          // We'll make a request to get the profile by username
+          const response = await fetch(`/api/supabase/profiles?username=${encodeURIComponent(values.username)}`);
+          const profilesData = await response.json();
+          
+          if (profilesData && profilesData.length > 0) {
+            const userEmail = profilesData[0].email;
+            console.log('Found email for username:', userEmail);
+            
+            // Use the found email to sign in
+            const { error } = await signIn(userEmail, values.password);
+            
+            if (error) {
+              throw new Error(error.message || "Login failed");
+            }
+          } else {
+            throw new Error("Username not found. Please check your credentials.");
+          }
+        } catch (lookupError: any) {
+          console.error('Error looking up user:', lookupError);
+          throw new Error("Username lookup failed. Please try using your email instead.");
+        }
+      } else {
+        // It's an email, proceed with direct login
+        const { error } = await signIn(values.username, values.password);
+        
+        if (error) {
+          throw new Error(error.message || "Login failed");
+        }
       }
       
       // Invalidate queries to refresh data
@@ -72,6 +100,7 @@ export default function LoginForm() {
       await new Promise(resolve => setTimeout(resolve, 300));
       
       // Get username from user metadata or email
+      const email = user?.email || '';
       const username = user?.user_metadata?.username || email.split('@')[0];
       const emailVerified = !!user?.email_confirmed_at;
       
@@ -81,10 +110,10 @@ export default function LoginForm() {
         // Check if email is verified
         if (emailVerified) {
           // Email is verified, go to dashboard
-          setLocation(`/${username}/dashboard`);
+          setLocation('/dashboard');
         } else {
           // Email not verified, go to settings page
-          setLocation(`/${username}/settings`);
+          setLocation('/settings');
         }
       } else {
         console.error('Username not available in user data');
@@ -98,6 +127,7 @@ export default function LoginForm() {
         description: "Welcome back to HomesBin!"
       });
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Login failed",
         description: error.message || "Invalid username or password. Please try again.",
