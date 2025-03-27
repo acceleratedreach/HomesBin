@@ -15,54 +15,202 @@ import {
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { z } from "zod";
+import session from "express-session";
+import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
+import MemoryStore from "memorystore";
 import { registerEmailRoutes } from "./routes/email";
 import { registerMarketingRoutes } from "./routes/marketing";
 import { registerThemeRoutes } from "./routes/theme";
 import { EmailService } from "./services/emailService";
-import authRouter from "./routes/auth";
-import { authenticate } from "./middleware/auth";
+
+const SessionStore = MemoryStore(session);
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Mount authentication router
-  app.use("/api/auth", authRouter);
+  // Session setup
+  app.use(
+    session({
+      secret: process.env.SESSION_SECRET || "homesbinsecret",
+      resave: false,
+      saveUninitialized: false,
+      store: new SessionStore({
+        checkPeriod: 86400000, // prune expired entries every 24h
+      }),
+      cookie: {
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      },
+    })
+  );
 
-  // Use our authenticate middleware from JWT implementation
-  const isAuthenticated = authenticate();
+  // Passport setup
+  app.use(passport.initialize());
+  app.use(passport.session());
 
-  // Auth routes are handled by the auth router we imported
+  passport.use(
+    new LocalStrategy(async (username, password, done) => {
+      try {
+        // Try to find the user by username first
+        let user = await storage.getUserByUsername(username);
+        
+        // If not found, try by email
+        if (!user) {
+          user = await storage.getUserByEmail(username);
+        }
+        
+        if (!user) {
+          return done(null, false, { message: "Incorrect username or email" });
+        }
 
-  // USER ROUTES
-  app.get("/api/user", isAuthenticated, async (req, res) => {
-    console.log("🔍 USER API endpoint called");
-    
+        // Check password using bcrypt
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+          return done(null, false, { message: "Incorrect password" });
+        }
+
+        return done(null, user);
+      } catch (err) {
+        return done(err);
+      }
+    })
+  );
+
+  passport.serializeUser((user: any, done) => {
+    done(null, user.id);
+  });
+
+  passport.deserializeUser(async (id: number, done) => {
     try {
-      const user: any = req.user;
-      console.log("🔍 User from req.user:", JSON.stringify(user, null, 2));
+      const user = await storage.getUser(id);
+      done(null, user);
+    } catch (err) {
+      done(err);
+    }
+  });
+
+  // Auth middleware
+  const isAuthenticated = (req: Request, res: Response, next: any) => {
+    if (req.isAuthenticated()) {
+      return next();
+    }
+    res.status(401).json({ message: "Unauthorized" });
+  };
+
+  // AUTH ROUTES
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const userData = insertUserSchema.parse(req.body);
       
-      if (!user || !user.id) {
-        console.error("🔍 Invalid user object:", user);
-        return res.status(401).json({ message: "Invalid user data" });
+      // Check if user already exists
+      const existingUserByUsername = await storage.getUserByUsername(userData.username);
+      if (existingUserByUsername) {
+        return res.status(400).json({ message: "Username already exists" });
       }
       
-      res.json({
+      const existingUserByEmail = await storage.getUserByEmail(userData.email);
+      if (existingUserByEmail) {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+
+      // Hash password
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(userData.password, salt);
+
+      // Create new user with hashed password
+      const user = await storage.createUser({
+        ...userData,
+        password: hashedPassword
+      });
+      
+      // Generate verification token
+      const verificationToken = await storage.generateVerificationToken(user.id);
+      
+      // Send verification email
+      try {
+        await EmailService.sendVerificationEmail(user.email, verificationToken);
+        console.log(`Verification email sent to: ${user.email}`);
+      } catch (emailError) {
+        console.error("Failed to send verification email:", emailError);
+        // We'll continue even if email sending fails
+      }
+      
+      // Log the user in
+      req.login(user, (err) => {
+        if (err) {
+          return res.status(500).json({ message: "Error logging in after registration" });
+        }
+        return res.status(201).json({
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            emailVerified: user.emailVerified,
+            fullName: user.fullName
+          }
+        });
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid input data", errors: error.errors });
+      }
+      console.error("Registration error:", error);
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  app.post("/api/auth/login", passport.authenticate("local"), (req, res) => {
+    const user: any = req.user;
+    res.json({
+      user: {
         id: user.id,
         username: user.username,
         email: user.email,
         emailVerified: user.emailVerified,
-        fullName: user.fullName,
-        profileImage: user.profileImage,
-        title: user.title,
-        phone: user.phone,
-        location: user.location,
-        experience: user.experience,
-        bio: user.bio,
-        specialties: user.specialties,
-        licenses: user.licenses
+        fullName: user.fullName
+      }
+    });
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.logout(() => {
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+
+  app.get("/api/auth/session", (req, res) => {
+    if (req.isAuthenticated()) {
+      const user: any = req.user;
+      return res.json({
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          fullName: user.fullName
+        }
       });
-    } catch (error) {
-      console.error("🔍 Error in /api/user endpoint:", error);
-      res.status(500).json({ message: "Server error getting user data" });
     }
+    return res.status(401).json({ message: "Not authenticated" });
+  });
+
+  // USER ROUTES
+  app.get("/api/user", isAuthenticated, async (req, res) => {
+    const user: any = req.user;
+    res.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      emailVerified: user.emailVerified,
+      fullName: user.fullName,
+      profileImage: user.profileImage,
+      title: user.title,
+      phone: user.phone,
+      location: user.location,
+      experience: user.experience,
+      bio: user.bio,
+      specialties: user.specialties,
+      licenses: user.licenses
+    });
   });
   
   // Get public user profile by username

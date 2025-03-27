@@ -2,49 +2,20 @@ import { apiRequest } from "./queryClient";
 import { queryClient } from "./queryClient";
 import { User } from "@shared/schema";
 
-// Token storage key
-const TOKEN_KEY = 'auth_token';
-
-/**
- * Get the stored auth token
- */
-export const getToken = (): string | null => {
-  try {
-    return localStorage.getItem(TOKEN_KEY);
-  } catch (error) {
-    console.error('Error getting token:', error);
-    return null;
-  }
-};
-
-/**
- * Store the auth token
- */
-export const setToken = (token: string): void => {
-  try {
-    localStorage.setItem(TOKEN_KEY, token);
-  } catch (error) {
-    console.error('Error setting token:', error);
-  }
-};
-
-/**
- * Remove the auth token
- */
-export const removeToken = (): void => {
-  try {
-    localStorage.removeItem(TOKEN_KEY);
-  } catch (error) {
-    console.error('Error removing token:', error);
-  }
-};
-
 /**
  * Check if the current user is authenticated
  * @returns True if the user is authenticated, false otherwise
  */
-export const isAuthenticated = (): boolean => {
-  return !!getToken();
+export const isAuthenticated = async (): Promise<boolean> => {
+  try {
+    const data = await queryClient.fetchQuery({
+      queryKey: ['/api/auth/session'],
+      staleTime: 1000 * 60, // 1 minute
+    });
+    return !!data?.user;
+  } catch (error) {
+    return false;
+  }
 };
 
 /**
@@ -52,21 +23,13 @@ export const isAuthenticated = (): boolean => {
  * @returns The user data or null if not authenticated
  */
 export const getCurrentUser = async (): Promise<User | null> => {
-  if (!isAuthenticated()) {
-    return null;
-  }
-  
   try {
     const data = await queryClient.fetchQuery({
-      queryKey: ['/api/auth/user'],
+      queryKey: ['/api/user'],
       staleTime: 1000 * 60, // 1 minute
     });
     return data || null;
   } catch (error) {
-    // If the token is invalid, clear it
-    if ((error as any)?.status === 401) {
-      removeToken();
-    }
     return null;
   }
 };
@@ -79,15 +42,7 @@ export const getCurrentUser = async (): Promise<User | null> => {
  */
 export const login = async (username: string, password: string): Promise<User> => {
   const response = await apiRequest('POST', '/api/auth/login', { username, password });
-  
-  // Store the token
-  if (response.token) {
-    setToken(response.token);
-  }
-  
-  // Invalidate any existing queries
-  await queryClient.invalidateQueries();
-  
+  await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
   return response.user;
 };
 
@@ -102,15 +57,7 @@ export const register = async (userData: {
   password: string;
 }): Promise<User> => {
   const response = await apiRequest('POST', '/api/auth/register', userData);
-  
-  // Store the token
-  if (response.token) {
-    setToken(response.token);
-  }
-  
-  // Invalidate any existing queries
-  await queryClient.invalidateQueries();
-  
+  await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
   return response.user;
 };
 
@@ -118,11 +65,8 @@ export const register = async (userData: {
  * Logout the current user
  */
 export const logout = async (): Promise<void> => {
-  // Simply remove the token
-  removeToken();
-  
-  // Invalidate queries that require authentication
-  await queryClient.invalidateQueries();
+  await apiRequest('POST', '/api/auth/logout', {});
+  await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
 };
 
 /**

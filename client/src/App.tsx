@@ -24,7 +24,6 @@ import VerifyEmail from "@/components/auth/VerifyEmail";
 import ResetPassword from "@/components/auth/ResetPassword";
 import ForgotPassword from "@/components/auth/ForgotPassword";
 import { useQuery } from "@tanstack/react-query";
-import { getToken } from "./lib/authUtils";
 
 interface UserData {
   id: number;
@@ -32,6 +31,10 @@ interface UserData {
   email: string;
   emailVerified?: boolean;
   fullName?: string;
+}
+
+interface SessionData {
+  user: UserData;
 }
 
 // Routes that are accessible without authentication
@@ -47,45 +50,70 @@ const PUBLIC_ROUTES = [
 function AppRoutes() {
   const [location, navigate] = useLocation();
   
-  // Simplified authentication check based only on token
-  const token = getToken();
-  const isAuthenticated = !!token;
-  
-  // Get user data directly from /api/auth/user endpoint
-  const { data: userData, isLoading: userLoading } = useQuery<UserData>({
-    queryKey: ['/api/auth/user'],
-    enabled: isAuthenticated,
-    retry: 1,
-    retryDelay: 1000,
+  // Fetch session data to determine authentication status
+  const { data: sessionData, isLoading: sessionLoading } = useQuery<SessionData>({
+    queryKey: ['/api/auth/session'],
+    retry: false,
+    staleTime: 1000 * 60 * 5 // 5 minutes
   });
   
-  // Simple redirect logic
+  // Check if user is authenticated based on session data
+  const isAuthenticated = !!sessionData?.user;
+  
+  // Fetch user data if authenticated
+  const { data: userData, isLoading: userLoading } = useQuery<UserData>({
+    queryKey: ['/api/user'],
+    enabled: isAuthenticated,
+    staleTime: 1000 * 60 * 5 // 5 minutes
+  });
+  
+  // Get current user information
+  const currentUser = userData || sessionData?.user;
+  
+  // Handle authentication-based redirects
   useEffect(() => {
-    // Basic debug info
-    console.log('Auth state:', { 
-      hasToken: !!token, 
-      isAuthenticated,
-      userData: userData || null,
-      location 
-    });
+    // Don't redirect from root path - allow users to see landing page even when authenticated
+    if (location === '/') return;
     
-    // Handle login/register pages
-    if (isAuthenticated && (location === '/login' || location === '/register')) {
-      const dashboardPath = '/dashboard';
-      navigate(dashboardPath, { replace: true });
-      return;
-    }
+    // If loading, wait for data before making routing decisions
+    if (sessionLoading) return;
     
-    // Simple public/protected route logic
+    // Check if trying to access a public route
     const isPublicRoute = PUBLIC_ROUTES.includes(location) || 
                           location.startsWith('/verify-email') ||
                           location.startsWith('/profile/');
     
-    // Redirect to login if not authenticated and trying to access protected route
+    // If not authenticated and trying to access a protected route
     if (!isAuthenticated && !isPublicRoute) {
       navigate('/login', { replace: true });
+      return;
     }
-  }, [isAuthenticated, location, userData, navigate]);
+    
+    // If authenticated but accessing a non-username route, redirect to the username-specific route
+    if (isAuthenticated && currentUser?.username && !sessionLoading && !userLoading) {
+      // List of path prefixes that should be username-specific
+      const userSpecificPrefixes = ['/dashboard', '/settings', '/listings', '/email-marketing', 
+                                   '/social-content', '/listing-graphics', '/lot-maps', '/theme'];
+      
+      // Check if current path matches any of these prefixes exactly
+      const shouldRedirect = userSpecificPrefixes.some(prefix => 
+        location === prefix || // Exact match
+        location.startsWith(`${prefix}/`) // Prefix with additional path
+      );
+      
+      if (shouldRedirect) {
+        // Extract the path after the prefix
+        const matchedPrefix = userSpecificPrefixes.find(prefix => 
+          location === prefix || location.startsWith(`${prefix}/`)
+        );
+        
+        if (matchedPrefix) {
+          const restOfPath = location === matchedPrefix ? '' : location.substring(matchedPrefix.length);
+          navigate(`/${currentUser.username}${matchedPrefix}${restOfPath}`, { replace: true });
+        }
+      }
+    }
+  }, [isAuthenticated, location, sessionLoading, userLoading, currentUser, navigate]);
 
   return (
     <Switch>
@@ -115,7 +143,10 @@ function AppRoutes() {
         {(params) => isAuthenticated ? <Dashboard /> : <Login />}
       </Route>
       <Route path="/dashboard">
-        {() => isAuthenticated ? <Dashboard /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <Dashboard /> : 
+          <Login />
+        }
       </Route>
       
       {/* User Feature Routes */}
@@ -123,49 +154,70 @@ function AppRoutes() {
         {(params) => isAuthenticated ? <Settings /> : <Login />}
       </Route>
       <Route path="/settings">
-        {() => isAuthenticated ? <Settings /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <Settings /> : 
+          <Login />
+        }
       </Route>
       
       <Route path="/:username/listings/new">
         {(params) => isAuthenticated ? <ListingCreate /> : <Login />}
       </Route>
       <Route path="/listings/new">
-        {() => isAuthenticated ? <ListingCreate /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <ListingCreate /> : 
+          <Login />
+        }
       </Route>
       
       <Route path="/:username/listings/:id/edit">
         {(params) => isAuthenticated ? <ListingEdit id={Number(params.id)} /> : <Login />}
       </Route>
       <Route path="/listings/:id/edit">
-        {(params) => isAuthenticated ? <ListingEdit id={Number(params.id)} /> : <Login />}
+        {(params) => isAuthenticated && currentUser ? 
+          <ListingEdit id={Number(params.id)} /> : 
+          <Login />
+        }
       </Route>
       
       <Route path="/:username/listings">
         {(params) => isAuthenticated ? <Listings /> : <Login />}
       </Route>
       <Route path="/listings">
-        {() => isAuthenticated ? <Listings /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <Listings /> : 
+          <Login />
+        }
       </Route>
       
       <Route path="/:username/email-marketing">
         {(params) => isAuthenticated ? <EmailMarketing /> : <Login />}
       </Route>
       <Route path="/email-marketing">
-        {() => isAuthenticated ? <EmailMarketing /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <EmailMarketing /> : 
+          <Login />
+        }
       </Route>
       
       <Route path="/:username/social-content">
         {(params) => isAuthenticated ? <SocialContent /> : <Login />}
       </Route>
       <Route path="/social-content">
-        {() => isAuthenticated ? <SocialContent /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <SocialContent /> : 
+          <Login />
+        }
       </Route>
       
       <Route path="/:username/listing-graphics">
         {(params) => isAuthenticated ? <ListingGraphics /> : <Login />}
       </Route>
       <Route path="/listing-graphics">
-        {() => isAuthenticated ? <ListingGraphics /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <ListingGraphics /> : 
+          <Login />
+        }
       </Route>
       
       {/* Lot Maps Routes */}
@@ -173,7 +225,10 @@ function AppRoutes() {
         {(params) => isAuthenticated ? <LotMaps /> : <Login />}
       </Route>
       <Route path="/lot-maps">
-        {() => isAuthenticated ? <LotMaps /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <LotMaps /> : 
+          <Login />
+        }
       </Route>
       
       {/* Lot Map Editor Routes */}
@@ -190,7 +245,10 @@ function AppRoutes() {
         {(params) => isAuthenticated ? <ThemePage /> : <Login />}
       </Route>
       <Route path="/theme">
-        {() => isAuthenticated ? <ThemePage /> : <Login />}
+        {() => isAuthenticated && currentUser ? 
+          <ThemePage /> : 
+          <Login />
+        }
       </Route>
       
       {/* Public Profile */}
@@ -199,8 +257,8 @@ function AppRoutes() {
       </Route>
       
       <Route path="/profile">
-        {() => isAuthenticated && userData ? 
-          <Profile username={userData.username} /> : 
+        {() => isAuthenticated && currentUser ? 
+          <Profile username={currentUser.username} /> : 
           <Login />
         }
       </Route>

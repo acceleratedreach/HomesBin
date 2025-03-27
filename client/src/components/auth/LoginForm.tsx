@@ -14,10 +14,9 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { apiRequest, checkAuthentication } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { setToken } from "@/lib/authUtils";
 
 // Define the user data interface
 interface UserData {
@@ -49,34 +48,45 @@ export default function LoginForm() {
     try {
       setIsSubmitting(true);
       // Send login request to API
-      console.log('Submitting login request with values:', values);
-      const loginResponse = await apiRequest('POST', '/api/auth/login', values);
-      console.log('Login API response:', loginResponse);
+      await apiRequest('POST', '/api/auth/login', values);
       
-      // Check for token in response
-      if (!loginResponse.token) {
-        throw new Error('No authentication token received from server');
+      // Invalidate auth queries to refresh data
+      await queryClient.invalidateQueries({ queryKey: ['/api/auth/session'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/user'] });
+      
+      console.log('Login successful, redirecting to dashboard');
+      
+      // Wait a bit for the session to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Get user data after login
+      const response = await apiRequest('GET', '/api/user');
+      const userData = await response.json() as UserData;
+      console.log('User data response:', userData);
+      
+      // Redirect based on email verification status
+      if (userData && userData.username) {
+        console.log('Username available:', userData.username);
+        // Check if email is verified
+        if (userData.emailVerified) {
+          // Email is verified, go to dashboard
+          setLocation(`/${userData.username}/dashboard`);
+        } else {
+          // Email not verified, go to settings page
+          setLocation(`/${userData.username}/settings`);
+        }
+      } else {
+        console.error('Username not available in user data:', userData);
+        // Fallback to standard dashboard route
+        setLocation('/dashboard');
       }
       
-      // Store the token in localStorage
-      console.log('Storing token, length:', loginResponse.token.length);
-      setToken(loginResponse.token);
-      
-      // Show success message
+      // Display success message
       toast({
         title: "Login successful",
-        description: "Redirecting to dashboard..."
+        description: "Welcome back to HomesBin!"
       });
-      
-      // Simple redirect approach - straight to dashboard
-      setTimeout(() => {
-        console.log('Redirecting to dashboard');
-        // Choose fixed path to avoid any dynamic path issues
-        window.location.href = '/dashboard';
-      }, 1000);
-      
     } catch (error: any) {
-      console.error('Login error:', error);
       toast({
         title: "Login failed",
         description: error.message || "Invalid username or password. Please try again.",

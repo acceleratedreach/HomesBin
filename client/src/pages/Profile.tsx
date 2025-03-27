@@ -100,8 +100,7 @@ export default function Profile({ username }: ProfileProps = {}) {
   
   // If user data is available, use it; otherwise use minimal defaults (only for display purposes)
   const profileData = {
-    username: userData?.username || "",
-    fullName: userData?.fullName || userData?.username || "",
+    name: userData?.fullName || userData?.username || "",
     title: userData?.title || "",
     phone: userData?.phone || "",
     email: userData?.email || "",

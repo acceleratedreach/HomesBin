@@ -18,36 +18,17 @@ interface SessionData {
 export default function Login() {
   const [, setLocation] = useLocation();
   
-  const { data: sessionData, isLoading, refetch } = useQuery<SessionData>({
+  const { data: sessionData } = useQuery<SessionData>({
     queryKey: ['/api/auth/session'],
-    refetchInterval: 2000, // Frequent checks
-    retry: 2
   });
-  
-  // Force refresh on mount
-  useEffect(() => {
-    // Immediate check
-    refetch();
-  }, [refetch]);
-  
-  // Debug session data
-  useEffect(() => {
-    console.log("Login page - Session data:", sessionData);
-    console.log("Login page - isLoading:", isLoading);
-    console.log("Login page - Current path:", window.location.pathname);
-  }, [sessionData, isLoading]);
   
   // Redirect to user's dashboard if already logged in
   useEffect(() => {
-    if (!isLoading && sessionData?.user) {
-      console.log("Login page - Already authenticated, redirecting to dashboard");
+    if (sessionData?.user) {
       const username = sessionData.user.username;
-      const dashboardUrl = `/${username}/dashboard`;
-      
-      // Direct browser navigation to avoid any React routing issues
-      window.location.href = dashboardUrl;
+      setLocation(`/${username}/dashboard`);
     }
-  }, [sessionData, isLoading, setLocation]);
+  }, [sessionData, setLocation]);
   
   return (
     <div className="min-h-screen flex flex-col">
