@@ -73,12 +73,12 @@ export default function Profile({ username }: ProfileProps = {}) {
     id: profileData.id || user?.id || '',
     username: profileData.username || displayUsername || '',
     email: profileData.email || user?.email || '',
-    fullName: profileData.full_name || user?.user_metadata?.full_name || '',
+    fullName: profileData.full_name || user?.user_metadata?.full_name || 'Real Estate Professional',
     emailVerified: !!user?.email_confirmed_at,
     profileImage: profileData.avatar_url || '',
-    title: profileData.title || '',
-    phone: profileData.phone || '',
-    location: profileData.location || '',
+    title: profileData.title || user?.user_metadata?.title || 'Licensed Agent',
+    phone: profileData.phone || user?.user_metadata?.phone || '',
+    location: profileData.location || user?.user_metadata?.location || '',
     experience: profileData.experience || '',
     bio: profileData.bio || '',
     specialties: Array.isArray(profileData.specialties) ? profileData.specialties : [],
@@ -87,7 +87,11 @@ export default function Profile({ username }: ProfileProps = {}) {
     id: user?.id || '',
     username: displayUsername || '',
     email: user?.email || '',
+    fullName: user?.user_metadata?.full_name || 'Real Estate Professional',
     emailVerified: !!user?.email_confirmed_at,
+    title: user?.user_metadata?.title || 'Licensed Agent',
+    phone: user?.user_metadata?.phone || '',
+    location: user?.user_metadata?.location || '',
   };
   
   // If no username is provided and the user is not logged in, redirect to login
