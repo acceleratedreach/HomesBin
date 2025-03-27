@@ -10,9 +10,7 @@ const TOKEN_KEY = 'auth_token';
  */
 export const getToken = (): string | null => {
   try {
-    const token = localStorage.getItem(TOKEN_KEY);
-    console.log('getToken() called, token exists:', !!token, token ? `(length: ${token.length})` : '');
-    return token;
+    return localStorage.getItem(TOKEN_KEY);
   } catch (error) {
     console.error('Error getting token:', error);
     return null;
@@ -24,11 +22,7 @@ export const getToken = (): string | null => {
  */
 export const setToken = (token: string): void => {
   try {
-    console.log('setToken() called with token length:', token.length);
     localStorage.setItem(TOKEN_KEY, token);
-    // Verify the token was actually stored
-    const storedToken = localStorage.getItem(TOKEN_KEY);
-    console.log('Token verified in storage:', !!storedToken, storedToken ? `(length: ${storedToken.length})` : '');
   } catch (error) {
     console.error('Error setting token:', error);
   }
@@ -39,11 +33,7 @@ export const setToken = (token: string): void => {
  */
 export const removeToken = (): void => {
   try {
-    console.log('removeToken() called');
     localStorage.removeItem(TOKEN_KEY);
-    // Verify the token was actually removed
-    const tokenExists = !!localStorage.getItem(TOKEN_KEY);
-    console.log('Token removed from storage:', !tokenExists);
   } catch (error) {
     console.error('Error removing token:', error);
   }

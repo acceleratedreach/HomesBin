@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
-import { queryClient, checkAuthentication } from "./lib/queryClient";
+import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
@@ -34,10 +34,6 @@ interface UserData {
   fullName?: string;
 }
 
-interface SessionData {
-  user: UserData;
-}
-
 // Routes that are accessible without authentication
 const PUBLIC_ROUTES = [
   "/", 
@@ -51,162 +47,45 @@ const PUBLIC_ROUTES = [
 function AppRoutes() {
   const [location, navigate] = useLocation();
   
-  // Fetch session data to determine authentication status using JWT
-  const { data: sessionData, isLoading: sessionLoading, error: sessionError, refetch: refetchSession } = useQuery<SessionData>({
-    queryKey: ['/api/auth/session'],
-    retry: 2,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    refetchInterval: 10000, // Refetch every 10 seconds in case token changes
-  });
-  
-  // Force refetch on first load and when token changes
-  useEffect(() => {
-    // Force refetch session data immediately when component mounts
-    refetchSession();
-    
-    // Also set an interval to check auth status periodically
-    const interval = setInterval(() => {
-      console.log('Periodic session check');
-      refetchSession();
-    }, 10000);
-    
-    return () => clearInterval(interval);
-  }, [refetchSession]);
-  
-  // Add debugging logs
-  useEffect(() => {
-    console.log('Session data updated in App.tsx:', sessionData);
-    console.log('Session loading:', sessionLoading);
-    console.log('Session error:', sessionError);
-    console.log('Current location:', location);
-  }, [sessionData, sessionLoading, sessionError, location]);
-  
-  // Check if user is authenticated based on JWT token
+  // Simplified authentication check based only on token
   const token = getToken();
-  const isAuthenticated = !!sessionData?.user || !!token;
+  const isAuthenticated = !!token;
   
-  // Debug authentication state
-  console.log('Auth check in App.tsx:', { 
-    hasToken: !!token, 
-    tokenLength: token ? token.length : 0,
-    hasSessionUser: !!sessionData?.user,
-    isAuthenticated
-  });
-  
-  // Fetch user data if authenticated
-  const { data: userData, isLoading: userLoading, error: userError, refetch: refetchUser } = useQuery<UserData>({
-    queryKey: ['/api/user'],
+  // Get user data directly from /api/auth/user endpoint
+  const { data: userData, isLoading: userLoading } = useQuery<UserData>({
+    queryKey: ['/api/auth/user'],
     enabled: isAuthenticated,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    refetchInterval: 30000, // Refetch every 30 seconds
-    retry: 2,
+    retry: 1,
+    retryDelay: 1000,
   });
   
-  // Refetch user data when session changes
+  // Simple redirect logic
   useEffect(() => {
-    if (isAuthenticated) {
-      refetchUser();
-    }
-  }, [isAuthenticated, refetchUser]);
-  
-  // Add debugging logs for user data
-  useEffect(() => {
-    if (isAuthenticated) {
-      console.log('User data updated in App.tsx:', userData);
-      console.log('User loading:', userLoading);
-      console.log('User error:', userError);
-    }
-  }, [userData, userLoading, userError, isAuthenticated]);
-  
-  // Get current user information
-  const currentUser = userData || sessionData?.user;
-  
-  // Handle authentication-based redirects
-  useEffect(() => {
-    // Don't do anything while session data is loading
-    if (sessionLoading) return;
-    
-    // Log redirection status
-    console.log('Auth check:', { 
-      isAuthenticated, 
-      location,
-      currentUser: currentUser?.username,
-      isLoading: sessionLoading || userLoading
+    // Basic debug info
+    console.log('Auth state:', { 
+      hasToken: !!token, 
+      isAuthenticated,
+      userData: userData || null,
+      location 
     });
     
-    // Special case: direct navigation to a user-specific URL pattern like /:username/dashboard
-    const userPathMatch = location.match(/^\/([^\/]+)\/([^\/]+)/);
-    if (userPathMatch) {
-      const [, usernameFromPath, section] = userPathMatch;
-      
-      // If authenticated and the username in URL doesn't match, redirect
-      if (isAuthenticated && currentUser?.username && 
-          usernameFromPath !== currentUser.username) {
-        // Check if the path is a valid section for redirecting
-        const validSections = ['dashboard', 'settings', 'listings', 'email-marketing', 
-                              'social-content', 'listing-graphics', 'lot-maps', 'theme'];
-        
-        if (validSections.includes(section)) {
-          const correctPath = `/${currentUser.username}/${section}`;
-          console.log(`URL username mismatch, redirecting from ${location} to ${correctPath}`);
-          navigate(correctPath, { replace: true });
-          return;
-        }
-      }
-      
-      // If an authenticated user hits a user-specific path that isn't their own,
-      // and we're not already redirecting to their correct path, continue...
-      // We'll handle this in the route rendering instead for better user experience
+    // Handle login/register pages
+    if (isAuthenticated && (location === '/login' || location === '/register')) {
+      const dashboardPath = '/dashboard';
+      navigate(dashboardPath, { replace: true });
+      return;
     }
     
-    // Normal public/protected route logic
+    // Simple public/protected route logic
     const isPublicRoute = PUBLIC_ROUTES.includes(location) || 
                           location.startsWith('/verify-email') ||
                           location.startsWith('/profile/');
     
-    // If trying to access login/register page while authenticated, redirect to dashboard
-    if (isAuthenticated && (location === '/login' || location === '/register')) {
-      const dashboardUrl = `/${currentUser?.username}/dashboard`;
-      console.log(`Already authenticated, redirecting to ${dashboardUrl}`);
-      navigate(dashboardUrl, { replace: true });
-      return;
-    }
-    
-    // If not authenticated and trying to access a protected route
+    // Redirect to login if not authenticated and trying to access protected route
     if (!isAuthenticated && !isPublicRoute) {
-      console.log('Not authenticated, redirecting to login');
       navigate('/login', { replace: true });
-      return;
     }
-    
-    // Handle redirection for user-specific paths without username prefix
-    // e.g. /dashboard should redirect to /:username/dashboard
-    if (isAuthenticated && currentUser?.username && !location.startsWith(`/${currentUser.username}`)) {
-      // List of path prefixes that should be username-specific
-      const userSpecificPrefixes = ['/dashboard', '/settings', '/listings', '/email-marketing', 
-                                  '/social-content', '/listing-graphics', '/lot-maps', '/theme'];
-      
-      // Check if current path matches any of these prefixes exactly
-      const shouldRedirect = userSpecificPrefixes.some(prefix => 
-        location === prefix || // Exact match
-        location.startsWith(`${prefix}/`) // Prefix with additional path
-      );
-      
-      if (shouldRedirect) {
-        // Extract the path after the prefix
-        const matchedPrefix = userSpecificPrefixes.find(prefix => 
-          location === prefix || location.startsWith(`${prefix}/`)
-        );
-        
-        if (matchedPrefix) {
-          const restOfPath = location === matchedPrefix ? '' : location.substring(matchedPrefix.length);
-          const newPath = `/${currentUser.username}${matchedPrefix}${restOfPath}`;
-          console.log(`Redirecting to user-specific path: ${newPath}`);
-          navigate(newPath, { replace: true });
-        }
-      }
-    }
-  }, [isAuthenticated, location, sessionLoading, userLoading, currentUser, navigate]);
+  }, [isAuthenticated, location, userData, navigate]);
 
   return (
     <Switch>
@@ -236,10 +115,7 @@ function AppRoutes() {
         {(params) => isAuthenticated ? <Dashboard /> : <Login />}
       </Route>
       <Route path="/dashboard">
-        {() => isAuthenticated && currentUser ? 
-          <Dashboard /> : 
-          <Login />
-        }
+        {() => isAuthenticated ? <Dashboard /> : <Login />}
       </Route>
       
       {/* User Feature Routes */}
@@ -247,70 +123,49 @@ function AppRoutes() {
         {(params) => isAuthenticated ? <Settings /> : <Login />}
       </Route>
       <Route path="/settings">
-        {() => isAuthenticated && currentUser ? 
-          <Settings /> : 
-          <Login />
-        }
+        {() => isAuthenticated ? <Settings /> : <Login />}
       </Route>
       
       <Route path="/:username/listings/new">
         {(params) => isAuthenticated ? <ListingCreate /> : <Login />}
       </Route>
       <Route path="/listings/new">
-        {() => isAuthenticated && currentUser ? 
-          <ListingCreate /> : 
-          <Login />
-        }
+        {() => isAuthenticated ? <ListingCreate /> : <Login />}
       </Route>
       
       <Route path="/:username/listings/:id/edit">
         {(params) => isAuthenticated ? <ListingEdit id={Number(params.id)} /> : <Login />}
       </Route>
       <Route path="/listings/:id/edit">
-        {(params) => isAuthenticated && currentUser ? 
-          <ListingEdit id={Number(params.id)} /> : 
-          <Login />
-        }
+        {(params) => isAuthenticated ? <ListingEdit id={Number(params.id)} /> : <Login />}
       </Route>
       
       <Route path="/:username/listings">
         {(params) => isAuthenticated ? <Listings /> : <Login />}
       </Route>
       <Route path="/listings">
-        {() => isAuthenticated && currentUser ? 
-          <Listings /> : 
-          <Login />
-        }
+        {() => isAuthenticated ? <Listings /> : <Login />}
       </Route>
       
       <Route path="/:username/email-marketing">
         {(params) => isAuthenticated ? <EmailMarketing /> : <Login />}
       </Route>
       <Route path="/email-marketing">
-        {() => isAuthenticated && currentUser ? 
-          <EmailMarketing /> : 
-          <Login />
-        }
+        {() => isAuthenticated ? <EmailMarketing /> : <Login />}
       </Route>
       
       <Route path="/:username/social-content">
         {(params) => isAuthenticated ? <SocialContent /> : <Login />}
       </Route>
       <Route path="/social-content">
-        {() => isAuthenticated && currentUser ? 
-          <SocialContent /> : 
-          <Login />
-        }
+        {() => isAuthenticated ? <SocialContent /> : <Login />}
       </Route>
       
       <Route path="/:username/listing-graphics">
         {(params) => isAuthenticated ? <ListingGraphics /> : <Login />}
       </Route>
       <Route path="/listing-graphics">
-        {() => isAuthenticated && currentUser ? 
-          <ListingGraphics /> : 
-          <Login />
-        }
+        {() => isAuthenticated ? <ListingGraphics /> : <Login />}
       </Route>
       
       {/* Lot Maps Routes */}
@@ -318,10 +173,7 @@ function AppRoutes() {
         {(params) => isAuthenticated ? <LotMaps /> : <Login />}
       </Route>
       <Route path="/lot-maps">
-        {() => isAuthenticated && currentUser ? 
-          <LotMaps /> : 
-          <Login />
-        }
+        {() => isAuthenticated ? <LotMaps /> : <Login />}
       </Route>
       
       {/* Lot Map Editor Routes */}
@@ -338,10 +190,7 @@ function AppRoutes() {
         {(params) => isAuthenticated ? <ThemePage /> : <Login />}
       </Route>
       <Route path="/theme">
-        {() => isAuthenticated && currentUser ? 
-          <ThemePage /> : 
-          <Login />
-        }
+        {() => isAuthenticated ? <ThemePage /> : <Login />}
       </Route>
       
       {/* Public Profile */}
@@ -350,8 +199,8 @@ function AppRoutes() {
       </Route>
       
       <Route path="/profile">
-        {() => isAuthenticated && currentUser ? 
-          <Profile username={currentUser.username} /> : 
+        {() => isAuthenticated && userData ? 
+          <Profile username={userData.username} /> : 
           <Login />
         }
       </Route>

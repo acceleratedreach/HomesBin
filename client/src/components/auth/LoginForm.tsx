@@ -53,59 +53,28 @@ export default function LoginForm() {
       const loginResponse = await apiRequest('POST', '/api/auth/login', values);
       console.log('Login API response:', loginResponse);
       
-      // Directly save the token ourselves to ensure it gets stored
-      if (loginResponse.token) {
-        console.log('Manually storing token from login response, length:', loginResponse.token.length);
-        setToken(loginResponse.token);
-        
-        // Verify token was stored
-        const storedToken = localStorage.getItem('auth_token');
-        console.log('Verified token in localStorage after setting:', storedToken ? 'Yes (length: ' + storedToken.length + ')' : 'No');
-      } else {
-        console.error('No token in login response!');
+      // Check for token in response
+      if (!loginResponse.token) {
+        throw new Error('No authentication token received from server');
       }
       
-      // Show success message immediately
+      // Store the token in localStorage
+      console.log('Storing token, length:', loginResponse.token.length);
+      setToken(loginResponse.token);
+      
+      // Show success message
       toast({
         title: "Login successful",
         description: "Redirecting to dashboard..."
       });
       
-      // Invalidate queries to refresh data
-      await queryClient.invalidateQueries();
+      // Simple redirect approach - straight to dashboard
+      setTimeout(() => {
+        console.log('Redirecting to dashboard');
+        // Choose fixed path to avoid any dynamic path issues
+        window.location.href = '/dashboard';
+      }, 1000);
       
-      // Wait a moment to ensure token is stored
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Confirm authentication status
-      const isAuthenticated = await checkAuthentication();
-      console.log('Authentication check after login:', isAuthenticated);
-      
-      // Simple approach: direct browser navigation with full page reload
-      if (loginResponse?.user?.username) {
-        const username = loginResponse.user.username;
-        console.log('Login successful, username:', username);
-        
-        try {
-          // First try a standard redirect
-          const dashboardUrl = `/${username}/dashboard`;
-          console.log('Redirecting to:', dashboardUrl);
-          
-          // Let's check if we have the token in local storage
-          const storedToken = localStorage.getItem('auth_token');
-          console.log('Token in localStorage before redirect:', storedToken ? 'Yes (length: ' + storedToken.length + ')' : 'No');
-          
-          // Use window.location for a more reliable redirect with a fresh state
-          window.location.href = dashboardUrl;
-        } catch (navError) {
-          console.error('Navigation error:', navError);
-          // Fallback to a direct href change in case replace fails
-          window.location.href = `/${username}/dashboard`;
-        }
-      } else {
-        console.error('Missing user information in login response');
-        throw new Error('Invalid login response');
-      }
     } catch (error: any) {
       console.error('Login error:', error);
       toast({

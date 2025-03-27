@@ -66,12 +66,21 @@ router.post('/login', async (req: Request, res: Response) => {
  */
 router.get('/user', authenticate(), async (req: Request, res: Response) => {
   try {
+    console.log('GET /api/auth/user - User ID from token:', req.user?.id);
+    
     // req.user is set by authenticate middleware
-    const user = await storage.getUser(req.user!.id);
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ message: 'Unauthorized - no user in request' });
+    }
+    
+    const user = await storage.getUser(req.user.id);
     
     if (!user) {
+      console.log(`User with ID ${req.user.id} not found in database`);
       return res.status(404).json({ message: 'User not found' });
     }
+    
+    console.log(`Returning user data for ${user.username} (ID: ${user.id})`);
     
     res.json({
       id: user.id,
@@ -128,10 +137,7 @@ router.post('/register', async (req: Request, res: Response) => {
       username,
       email,
       password: hashedPassword,
-      fullName,
-      emailVerified: false,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      fullName
     });
     
     // Generate verification token
@@ -179,10 +185,15 @@ router.post('/logout', async (req: Request, res: Response) => {
  * Return the current auth state based on JWT (for backwards compatibility)
  */
 router.get('/session', authenticate(true), async (req: Request, res: Response) => {
+  console.log('GET /api/auth/session - Checking session state');
+  
   // If user was set by authenticate middleware, they're authenticated
   if (req.user) {
+    console.log(`Session check - User ID from token: ${req.user.id}`);
+    
     const user = await storage.getUser(req.user.id);
     if (user) {
+      console.log(`Session valid for ${user.username} (ID: ${user.id})`);
       return res.json({
         user: {
           id: user.id,
@@ -192,7 +203,11 @@ router.get('/session', authenticate(true), async (req: Request, res: Response) =
           fullName: user.fullName
         }
       });
+    } else {
+      console.log(`Session has valid token but user ID ${req.user.id} not found in database`);
     }
+  } else {
+    console.log('Session check - No authenticated user');
   }
   
   // Not authenticated
