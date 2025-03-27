@@ -46,13 +46,22 @@ async function initializeSupabase() {
           console.log('Supabase configuration loaded from server API');
           
           // Create the actual client
-          supabase = createClient(config.supabase.url, config.supabase.key, {
+          const options = {
             auth: {
               persistSession: true,
               autoRefreshToken: true,
               detectSessionInUrl: true
             }
-          });
+          };
+          
+          // Add site URL to config if available
+          if (config.supabase.siteUrl) {
+            console.log('Setting Supabase site URL to:', config.supabase.siteUrl);
+            // @ts-ignore (redirectTo is valid but TypeScript definition might be outdated)
+            options.auth.redirectTo = config.supabase.siteUrl;
+          }
+          
+          supabase = createClient(config.supabase.url, config.supabase.key, options);
           
           console.log('Supabase client initialized successfully with API config');
           return;
@@ -67,13 +76,18 @@ async function initializeSupabase() {
     const envSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
     if (envSupabaseUrl && envSupabaseKey) {
-      supabase = createClient(envSupabaseUrl, envSupabaseKey, {
+      const options = {
         auth: {
           persistSession: true,
           autoRefreshToken: true,
           detectSessionInUrl: true
         }
-      });
+      };
+      
+      // @ts-ignore (redirectTo is valid but TypeScript definition might be outdated)
+      options.auth.redirectTo = window.location.origin;
+      
+      supabase = createClient(envSupabaseUrl, envSupabaseKey, options);
       
       console.log('Supabase client initialized with environment variables');
       return;

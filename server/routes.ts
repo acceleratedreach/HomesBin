@@ -30,10 +30,16 @@ const SessionStore = MemoryStore(session);
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add endpoint to provide Supabase credentials to the client
   app.get('/api/config', (req, res) => {
+    // Determine the site URL
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const siteUrl = `${protocol}://${host}`;
+
     res.json({
       supabase: {
         url: process.env.SUPABASE_URL || '',
-        key: process.env.SUPABASE_ANON_KEY || ''
+        key: process.env.SUPABASE_ANON_KEY || '',
+        siteUrl: siteUrl
       }
     });
   });

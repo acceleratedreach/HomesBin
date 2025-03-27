@@ -60,22 +60,8 @@ export default function RegisterForm() {
         throw new Error(error.message || "Registration failed");
       }
       
-      // Create profile record in Supabase profiles table
-      try {
-        await insertToSupabase('profiles', {
-          email: registerData.email,
-          username: registerData.username,
-          full_name: "",
-          bio: "",
-          avatar_url: "",
-        });
-      } catch (profileError) {
-        console.error('Failed to create profile record:', profileError);
-        // Continue with registration even if profile creation fails
-        // The profile can be created later
-      }
-      
-      // Invalidate queries to refresh data
+      // No need to manually create profile - this is handled by Supabase trigger
+      // Just invalidate queries to refresh data
       await queryClient.invalidateQueries({ queryKey: ['/api/supabase/profiles'] });
       
       // Redirect to login page since Supabase requires email verification
