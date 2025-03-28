@@ -45,28 +45,31 @@ export default function Header({ isAuthenticated: propIsAuthenticated }: HeaderP
     fullName: profileData?.full_name || user?.user_metadata?.full_name
   };
 
+  // Handle logout action
   const handleLogout = async () => {
     try {
+      console.log('Logging out user');
       const { error } = await signOut();
       
       if (error) {
-        throw new Error(error.message || 'Failed to sign out');
+        throw error;
       }
       
       // Clear all auth-related queries from cache
       queryClient.invalidateQueries({ queryKey: ['/api/supabase/profiles'] });
       
-      // Redirect to login page
-      setLocation('/login');
-      
       toast({
-        title: "Logged out successfully",
-        description: "You have been logged out of your account",
+        title: "Logged out",
+        description: "You have been successfully logged out",
       });
-    } catch (error: any) {
+      
+      // Force redirect to login page with page refresh to ensure clean state
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Logout error:', error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to log out. Please try again.",
+        title: "Logout failed",
+        description: "There was a problem logging you out. Please try again.",
         variant: "destructive",
       });
     }

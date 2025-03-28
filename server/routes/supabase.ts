@@ -233,4 +233,40 @@ export function registerSupabaseRoutes(app: Express) {
       });
     }
   });
+
+  /**
+   * Create or update user profile
+   */
+  app.post('/api/supabase/profiles', async (req: Request, res: Response) => {
+    try {
+      // We'll allow profile creation even without session for initial setup
+      const profileData = req.body;
+      
+      if (!profileData.id) {
+        return res.status(400).json({ 
+          message: 'Profile ID is required',
+          error: 'Missing profile ID'
+        });
+      }
+      
+      console.log('Creating/updating profile:', profileData.id);
+      
+      // Ensure timestamps are set
+      if (!profileData.created_at) {
+        profileData.created_at = new Date().toISOString();
+      }
+      profileData.updated_at = new Date().toISOString();
+      
+      // Insert or update the profile
+      const result = await SupabaseService.upsert('profiles', profileData);
+      
+      res.status(201).json(result);
+    } catch (error: any) {
+      console.error('Error creating/updating profile in Supabase:', error);
+      res.status(500).json({ 
+        message: 'Server error',
+        error: error.message 
+      });
+    }
+  });
 }

@@ -18,11 +18,25 @@ import {
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { supabase } from "@/lib/supabase";
 
-interface UserData {
+// Define proper interface for profile data from Supabase
+interface ProfileData {
+  id?: string;
   username?: string;
-  fullName?: string;
-  profileImage?: string;
+  full_name?: string;
+  avatar_url?: string | null;
+  email?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Define interface for UI data
+interface UserDisplay {
+  username: string;
+  fullName: string;
+  profileImage: string | null;
 }
 
 interface NavLink {
@@ -35,12 +49,43 @@ interface NavLink {
 export default function DashboardSidebar() {
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
+  const { user, isAuthenticated } = useSupabaseAuth();
   
-  const { data: userData } = useQuery<UserData>({
-    queryKey: ['/api/user'],
+  // Get profile data for the authenticated user
+  const { data: profileData } = useQuery<ProfileData | null>({
+    queryKey: ['supabase-profile-sidebar', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+          
+        if (error) {
+          console.error('Error fetching profile for sidebar:', error);
+          return null;
+        }
+        
+        return data as ProfileData;
+      } catch (e) {
+        console.error('Exception in profile query for sidebar:', e);
+        return null;
+      }
+    },
+    enabled: !!user?.id && isAuthenticated,
   });
   
-  const username = userData?.username || '';
+  // Define user display information
+  const userDisplay: UserDisplay | null = user ? {
+    username: profileData?.username || user.user_metadata?.username || user.email?.split('@')[0] || '',
+    fullName: profileData?.full_name || user.user_metadata?.full_name || '',
+    profileImage: profileData?.avatar_url || null
+  } : null;
+  
+  const username = userDisplay?.username || '';
   
   // Generate user-specific links only when username is available
   const [mainLinks, setMainLinks] = useState<NavLink[]>([]);
@@ -49,36 +94,38 @@ export default function DashboardSidebar() {
   useEffect(() => {
     if (!username) return;
     
+    console.log('Updating sidebar links for user:', username);
+    
     setMainLinks([
       {
         label: "Dashboard",
         href: `/${username}/dashboard`,
         icon: <LayoutDashboard className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
-        activeMatches: ['/dashboard']
+        activeMatches: ['dashboard']
       },
       {
         label: "Listings",
         href: `/${username}/listings`,
         icon: <ListFilter className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
-        activeMatches: ['/listings', '/listing-create', '/listing-edit']
+        activeMatches: ['listings', 'listing-create', 'listing-edit']
       },
       {
         label: "Marketing",
         href: `/${username}/email-marketing`,
         icon: <Mail className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
-        activeMatches: ['/email-marketing']
+        activeMatches: ['email-marketing']
       },
       {
         label: "Social Content",
         href: `/${username}/social-content`,
         icon: <Image className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
-        activeMatches: ['/social-content', '/listing-graphics']
+        activeMatches: ['social-content', 'listing-graphics']
       },
       {
         label: "Lot Maps",
         href: `/${username}/lot-maps`,
         icon: <MapPin className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
-        activeMatches: ['/lot-maps', '/lot-maps/']
+        activeMatches: ['lot-maps']
       }
     ]);
     
@@ -87,18 +134,19 @@ export default function DashboardSidebar() {
         label: "Profile",
         href: `/profile/${username}`,
         icon: <UserCircle className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
+        activeMatches: ['profile']
       },
       {
         label: "Theme",
         href: `/${username}/theme`,
         icon: <Palette className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
-        activeMatches: ['/theme']
+        activeMatches: ['theme']
       },
       {
         label: "Settings",
         href: `/${username}/settings`,
         icon: <Settings className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />,
-        activeMatches: ['/settings']
+        activeMatches: ['settings']
       },
     ]);
   }, [username]);
@@ -108,6 +156,11 @@ export default function DashboardSidebar() {
     if (!link.activeMatches) return location === link.href;
     return link.activeMatches.some(match => location.includes(match));
   };
+
+  // Don't render the sidebar if we don't have a username
+  if (!userDisplay || !userDisplay.username) {
+    return null;
+  }
 
   return (
     <Sidebar open={open} setOpen={setOpen}>
@@ -157,15 +210,15 @@ export default function DashboardSidebar() {
           </div>
         </div>
         <div>
-          {userData && (
+          {userDisplay && (
             <SidebarLink
               link={{
-                label: userData.fullName || userData.username || "User",
+                label: userDisplay.fullName || userDisplay.username || "User",
                 href: `/${username}/settings`,
                 icon: (
-                  userData.profileImage ? (
+                  userDisplay.profileImage ? (
                     <img
-                      src={userData.profileImage}
+                      src={userDisplay.profileImage}
                       className="h-7 w-7 flex-shrink-0 rounded-full object-cover"
                       alt="Profile"
                     />
@@ -175,16 +228,16 @@ export default function DashboardSidebar() {
                 ),
               }}
             />
-              )}
-            </div>
+          )}
+        </div>
       </SidebarBody>
     </Sidebar>
-          );
-          }
+  );
+}
 
 // Logo components
 const Logo = ({ username }: { username: string }) => {
-          return (
+  return (
     <a
       href={username ? `/${username}/dashboard` : "/dashboard"}
       className="font-normal flex space-x-2 items-center text-sm text-black py-1 relative z-20"

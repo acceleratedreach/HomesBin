@@ -34,74 +34,213 @@ const createMockClient = () => {
 // Initialize with mock client that will be replaced after fetching config
 supabase = createMockClient();
 
-// Fetch configuration from server
+// Initialize with config from server
 async function initializeSupabase() {
   try {
-    // Prioritize config from server-side API
+    console.log('Initializing Supabase client...');
+    
+    // Get environment variables directly for client-side usage
+    const envSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const envSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    // Log the environment variables for debugging
+    console.log('ENV variables check:', {
+      hasUrl: !!envSupabaseUrl,
+      hasKey: !!envSupabaseKey,
+      url: envSupabaseUrl ? `${envSupabaseUrl.substring(0, 12)}...` : 'missing',
+    });
+    
+    // If variables are missing or empty, try other methods
+    if (!envSupabaseUrl || !envSupabaseKey) {
+      console.warn('Missing or empty Supabase environment variables - will try fallbacks');
+    }
+    
+    // Improved auth options for better session persistence
+    const authOptions = {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: 'supabase.auth.token',
+      storage: {
+        getItem: (key: string) => {
+          try {
+            // Try localStorage first
+            let value = window.localStorage.getItem(key);
+            if (!value) {
+              // If not in localStorage, try sessionStorage as backup
+              value = window.sessionStorage.getItem(key);
+            }
+            console.log(`Storage get [${key.substring(0, 10)}...]: ${value ? 'exists' : 'null'}`);
+            return value;
+          } catch (e) {
+            console.warn(`Error getting item from storage: ${key}`, e);
+            return null;
+          }
+        },
+        setItem: (key: string, value: string) => {
+          try {
+            console.log(`Storage set [${key.substring(0, 10)}...]: ${value ? 'value exists' : 'null'}`);
+            // Store in both localStorage and sessionStorage for redundancy
+            window.localStorage.setItem(key, value);
+            window.sessionStorage.setItem(key, value);
+            
+            // For critical auth tokens, also set as cookies as a fallback
+            if (key.includes('access_token') || key.includes('refresh_token')) {
+              try {
+                const oneWeek = 60 * 60 * 24 * 7;
+                document.cookie = `sb-fallback-${key}=${encodeURIComponent(value)};max-age=${oneWeek};path=/;SameSite=Lax`;
+              } catch (cookieError) {
+                console.warn('Error setting cookie:', cookieError);
+              }
+            }
+          } catch (e) {
+            console.warn(`Error setting item in storage: ${key}`, e);
+            // If localStorage fails, try sessionStorage
+            try {
+              window.sessionStorage.setItem(key, value);
+            } catch (se) {
+              console.warn(`Error setting item in sessionStorage: ${key}`, se);
+            }
+          }
+        },
+        removeItem: (key: string) => {
+          try {
+            console.log(`Storage remove [${key.substring(0, 10)}...]`);
+            window.localStorage.removeItem(key);
+            window.sessionStorage.removeItem(key);
+            
+            // Also remove any fallback cookies
+            if (key.includes('access_token') || key.includes('refresh_token')) {
+              document.cookie = `sb-fallback-${key}=;max-age=0;path=/;`;
+            }
+          } catch (e) {
+            console.warn(`Error removing item from storage: ${key}`, e);
+          }
+        },
+      },
+      // Use Lax for better compatibility, Strict can cause issues with auth redirects
+      cookieOptions: {
+        name: 'sb-auth-token',
+        lifetime: 60 * 60 * 24 * 7, // 7 days
+        domain: window.location.hostname,
+        path: '/',
+        sameSite: 'Lax',
+        secure: window.location.protocol === 'https:',
+      }
+    };
+    
+    // Priority 1: Use environment variables if available (preferred for production)
+    if (envSupabaseUrl && envSupabaseKey) {
+      console.log('Creating Supabase client from environment variables');
+      try {
+        supabase = createClient(envSupabaseUrl, envSupabaseKey, { auth: authOptions });
+        
+        // Try to immediately get the session to verify setup
+        const sessionResult = await supabase.auth.getSession();
+        if (!sessionResult || !sessionResult.data) {
+          console.warn('getSession() returned null response');
+        } else {
+          console.log('Initial auth check:', { 
+            sessionExists: !!sessionResult.data.session,
+            userExists: !!sessionResult.data.session?.user,
+            error: sessionResult.error ? sessionResult.error.message : null
+          });
+          
+          if (sessionResult.data.session) {
+            console.log('Session found during initialization');
+          } else {
+            console.log('No session found during initialization');
+          }
+        }
+        
+        return;
+      } catch (clientError) {
+        console.error('Error creating Supabase client with env vars:', clientError);
+        // Will try other methods
+      }
+    }
+    
+    // Priority 2: Try to fetch from API
     try {
+      console.log('Attempting to fetch Supabase config from server API...');
       const response = await fetch('/api/config');
       if (response.ok) {
         const config = await response.json();
         if (config?.supabase?.url && config?.supabase?.key) {
-          console.log('Supabase configuration loaded from server API');
-          
-          // Create the actual client
-          const options = {
-            auth: {
-              persistSession: true,
-              autoRefreshToken: true,
-              detectSessionInUrl: true
-            }
-          };
-          
-          // Add site URL to config if available
-          if (config.supabase.siteUrl) {
-            console.log('Setting Supabase site URL to:', config.supabase.siteUrl);
-            // @ts-ignore (redirectTo is valid but TypeScript definition might be outdated)
-            options.auth.redirectTo = config.supabase.siteUrl;
-          }
-          
-          supabase = createClient(config.supabase.url, config.supabase.key, options);
-          
-          console.log('Supabase client initialized successfully with API config');
+          console.log('Found Supabase config from server API');
+          supabase = createClient(config.supabase.url, config.supabase.key, { auth: authOptions });
           return;
         }
       }
     } catch (apiError) {
       console.error('Error fetching config from API:', apiError);
     }
-
-    // Fallback to environment variables
-    const envSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const envSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
-    if (envSupabaseUrl && envSupabaseKey) {
-      const options = {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true
-        }
-      };
-      
-      // @ts-ignore (redirectTo is valid but TypeScript definition might be outdated)
-      options.auth.redirectTo = window.location.origin;
-      
-      supabase = createClient(envSupabaseUrl, envSupabaseKey, options);
-      
-      console.log('Supabase client initialized with environment variables');
-      return;
-    }
+    // If we reach here, we couldn't initialize properly
+    console.error('Failed to initialize Supabase with valid credentials');
+    supabase = createMockClient();
     
-    console.error('Missing Supabase credentials from both API and environment');
   } catch (error) {
-    console.error('Failed to initialize Supabase client:', error);
+    console.error('Error initializing Supabase client:', error);
     supabase = createMockClient();
   }
 }
 
-// Start the initialization process
+// Initialize immediately
 initializeSupabase();
+
+// Add a debug helper to the window object
+if (typeof window !== 'undefined') {
+  // @ts-ignore - Adding to window for debugging
+  window.checkSupabaseEnv = () => {
+    console.log('Checking Supabase Environment Variables:');
+    console.log('-------------------------------------');
+    
+    try {
+      const viteSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const viteSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      console.log('VITE_SUPABASE_URL:', viteSupabaseUrl ? 
+        `Found (${viteSupabaseUrl.substring(0, 12)}...)` : 'Not found or empty');
+      console.log('VITE_SUPABASE_ANON_KEY:', viteSupabaseKey ? 
+        `Found (${viteSupabaseKey.substring(0, 5)}...)` : 'Not found or empty');
+      
+      console.log('\nCurrent Supabase Client Status:');
+      console.log('----------------------------');
+      // @ts-ignore - Accessing private property for debugging
+      const supabaseInternals = supabase.auth;
+      console.log('Auth initialized:', !!supabaseInternals);
+      
+      console.log('\nLocal Storage Auth Items:');
+      console.log('----------------------');
+      const authItems = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('supabase') || key.includes('sb-'))) {
+          const value = localStorage.getItem(key);
+          authItems.push({
+            key,
+            hasValue: !!value,
+            preview: value ? `${value.substring(0, 15)}...` : 'empty'
+          });
+        }
+      }
+      console.table(authItems);
+      
+      return {
+        hasUrl: !!viteSupabaseUrl,
+        hasKey: !!viteSupabaseKey,
+        authInitialized: !!supabaseInternals,
+        localStorageItems: authItems.length
+      };
+    } catch (e: any) {
+      console.error('Error in checkSupabaseEnv:', e);
+      return { error: e.message };
+    }
+  };
+  
+  console.log('Debug helper added - run window.checkSupabaseEnv() in console to verify Supabase environment');
+}
 
 export { supabase };
 

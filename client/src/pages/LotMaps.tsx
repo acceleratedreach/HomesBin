@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation, Link } from "wouter";
+import { useLocation, Link, useParams } from "wouter";
 import Header from "@/components/layout/Header";
 import DashboardSidebar from "@/components/layout/Sidebar";
 import EmailVerificationAlert from "@/components/layout/EmailVerificationAlert";
@@ -11,35 +11,108 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { supabase } from "@/lib/supabase";
 
 export default function LotMaps() {
+  const params = useParams();
   const [location, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [newMapDialog, setNewMapDialog] = useState(false);
   const [confirmDeleteDialog, setConfirmDeleteDialog] = useState(false);
-  const [selectedMapId, setSelectedMapId] = useState<number | null>(null);
+  const [selectedMapId, setSelectedMapId] = useState<string | null>(null);
+  const { user, isAuthenticated, loading: authLoading } = useSupabaseAuth();
   
-  // Get current user session
-  const { data: sessionData } = useQuery<{ user: any }>({
-    queryKey: ['/api/auth/session'],
+  // Get username from URL params
+  const usernameFromUrl = params.username;
+  
+  // Get profile data for the authenticated user
+  const { data: profileData, isLoading: profileLoading } = useQuery({
+    queryKey: ['lotmaps-profile', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+          
+        if (error) {
+          console.error('Error fetching profile for lot maps:', error);
+          return null;
+        }
+        
+        return data;
+      } catch (e) {
+        console.error('Exception in profile query for lot maps:', e);
+        return null;
+      }
+    },
+    enabled: !!user?.id && isAuthenticated,
   });
   
-  // Get user data
-  const { data: userData } = useQuery<any>({
-    queryKey: ['/api/user'],
-    enabled: !!sessionData?.user,
-  });
+  // Construct user info from Supabase auth + profile
+  const userData = user ? {
+    id: user.id,
+    username: profileData?.username || user.user_metadata?.username || user.email?.split('@')[0] || '',
+    email: user.email || '',
+    fullName: profileData?.full_name || user.user_metadata?.full_name || ''
+  } : null;
   
-  // Get all user's maps
+  // Get all user's maps from Supabase
   const { data: maps = [], isLoading: mapsLoading } = useQuery<any[]>({
-    queryKey: ['/api/map-settings'],
-    enabled: !!sessionData?.user,
+    queryKey: ['lot-maps', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      try {
+        const { data, error } = await supabase
+          .from('lot_maps')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+          
+        if (error) {
+          console.error('Error fetching lot maps:', error);
+          return [];
+        }
+        
+        return data || [];
+      } catch (e) {
+        console.error('Exception in lot maps query:', e);
+        return [];
+      }
+    },
+    enabled: !!user?.id && isAuthenticated,
   });
+  
+  // If we're directly accessing the /lot-maps route, redirect to /:username/lot-maps
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user && !usernameFromUrl) {
+      const username = userData?.username;                       
+      if (username) {
+        console.log(`Redirecting to user-specific lot maps: /${username}/lot-maps`);
+        navigate(`/${username}/lot-maps`, { replace: true });
+      }
+    }
+  }, [authLoading, isAuthenticated, user, userData, usernameFromUrl, navigate]);
+  
+  // Check if user is accessing their own lot maps, redirect if not
+  useEffect(() => {
+    if (isAuthenticated && usernameFromUrl && userData) {
+      if (usernameFromUrl !== userData.username) {
+        console.log(`User ${userData.username} trying to access ${usernameFromUrl}'s lot maps, redirecting`);
+        navigate(`/${userData.username}/lot-maps`, { replace: true });
+      }
+    }
+  }, [isAuthenticated, userData, usernameFromUrl, navigate]);
 
   const createNewMap = async (formData: FormData) => {
     try {
-      if (!userData?.username) {
+      if (!userData?.username || !user?.id) {
         throw new Error("Please wait for user data to load");
       }
 
@@ -56,28 +129,29 @@ export default function LotMaps() {
         .replace(/[^\w\s]/gi, '')
         .replace(/\s+/g, '-');
       
-      const response = await fetch('/api/map-settings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Create new map directly in Supabase
+      const { data: newMap, error } = await supabase
+        .from('lot_maps')
+        .insert({
           name,
           description,
           slug,
-        }),
-      });
+          user_id: user.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          status: 'active'
+        })
+        .select('*')
+        .single();
       
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Failed to create new map");
+      if (error) {
+        throw new Error(error.message || "Failed to create new map");
       }
       
-      const newMap = await response.json();
       setNewMapDialog(false);
       
       // Invalidate the maps query to refresh the data
-      await queryClient.invalidateQueries({ queryKey: ['/api/map-settings'] });
+      await queryClient.invalidateQueries({ queryKey: ['lot-maps', user.id] });
       
       toast({
         title: "Success",
@@ -96,22 +170,25 @@ export default function LotMaps() {
   };
   
   const handleDeleteMap = async () => {
-    if (!selectedMapId) return;
+    if (!selectedMapId || !user?.id) return;
     
     try {
-      const response = await fetch(`/api/map-settings/${selectedMapId}`, {
-        method: 'DELETE',
-      });
+      // Delete map directly from Supabase
+      const { error } = await supabase
+        .from('lot_maps')
+        .delete()
+        .eq('id', selectedMapId)
+        .eq('user_id', user.id); // Make sure the user can only delete their own maps
       
-      if (!response.ok) {
-        throw new Error("Failed to delete map");
+      if (error) {
+        throw new Error(error.message || "Failed to delete map");
       }
       
       setConfirmDeleteDialog(false);
       setSelectedMapId(null);
       
       // Invalidate the maps query to refresh the data
-      await queryClient.invalidateQueries({ queryKey: ['/api/map-settings'] });
+      await queryClient.invalidateQueries({ queryKey: ['lot-maps', user.id] });
       
       toast({
         title: "Success",
@@ -126,14 +203,35 @@ export default function LotMaps() {
     }
   };
   
-  const confirmDelete = (mapId: number) => {
+  const confirmDelete = (mapId: string) => {
     setSelectedMapId(mapId);
     setConfirmDeleteDialog(true);
   };
   
+  // Show loading state when checking auth or fetching data
+  if (authLoading || profileLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-8">
+        <p className="text-lg mb-2">Loading lot maps...</p>
+        <p className="text-sm text-muted-foreground">Retrieving your map data...</p>
+      </div>
+    );
+  }
+  
+  // Show authentication required message if not logged in
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-8">
+        <p className="text-lg mb-2">Authentication required</p>
+        <p className="text-sm text-muted-foreground mb-4">Please log in to view your lot maps</p>
+        <Button onClick={() => navigate('/login')}>Go to Login</Button>
+      </div>
+    );
+  }
+  
   return (
     <div className="min-h-screen flex flex-col">
-      <Header isAuthenticated={!!sessionData?.user} />
+      <Header isAuthenticated={true} />
       
       <div className="flex-grow flex">
         <DashboardSidebar />
@@ -168,9 +266,9 @@ export default function LotMaps() {
                       </CardHeader>
                       <CardContent>
                         <div className="aspect-video bg-muted rounded-md mb-4 flex items-center justify-center overflow-hidden">
-                          {map.backgroundImage ? (
+                          {map.background_image ? (
                             <img
-                              src={map.backgroundImage}
+                              src={map.background_image}
                               alt={map.name}
                               className="w-full h-full object-cover"
                             />
@@ -179,9 +277,9 @@ export default function LotMaps() {
                           )}
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">ID: {map.id}</span>
+                          <span className="text-muted-foreground">Slug: {map.slug}</span>
                           <span className="text-muted-foreground">
-                            Created: {new Date(map.createdAt).toLocaleDateString()}
+                            Created: {new Date(map.created_at).toLocaleDateString()}
                           </span>
                         </div>
                       </CardContent>
@@ -248,79 +346,73 @@ export default function LotMaps() {
                 )}
               </div>
             )}
+            
+            {/* New Map Dialog */}
+            <Dialog open={newMapDialog} onOpenChange={setNewMapDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create New Lot Map</DialogTitle>
+                  <DialogDescription>
+                    Create a new interactive lot map for your development project.
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  createNewMap(new FormData(e.currentTarget));
+                }} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Map Name</Label>
+                    <Input
+                      id="name"
+                      name="name"
+                      placeholder="E.g., Oakridge Development"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="description">Description (Optional)</Label>
+                    <Input
+                      id="description"
+                      name="description"
+                      placeholder="Brief description of this development"
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button type="button" variant="outline" onClick={() => setNewMapDialog(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">Create Map</Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+            
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={confirmDeleteDialog} onOpenChange={setConfirmDeleteDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete Lot Map</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to delete this lot map? This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="flex justify-end gap-2 pt-4">
+                  <Button variant="outline" onClick={() => setConfirmDeleteDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button variant="destructive" onClick={handleDeleteMap}>
+                    Delete Map
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </main>
       </div>
-      
-      {/* New Map Dialog */}
-      <Dialog open={newMapDialog} onOpenChange={setNewMapDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Lot Map</DialogTitle>
-            <DialogDescription>
-              Enter the details for your new interactive lot map
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            const formData = new FormData(e.currentTarget);
-            createNewMap(formData);
-          }}>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Map Name</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  placeholder="e.g., Woodland Estates"
-                  required
-                />
-              </div>
-              
-              <div className="grid gap-2">
-                <Label htmlFor="description">Description</Label>
-                <Input
-                  id="description"
-                  name="description"
-                  placeholder="e.g., New luxury development in North Hills"
-                />
-              </div>
-            </div>
-            
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setNewMapDialog(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                Create Map
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={confirmDeleteDialog} onOpenChange={setConfirmDeleteDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this lot map? This action cannot be undone 
-              and will delete all associated lots.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setConfirmDeleteDialog(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteMap}>
-              Delete
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

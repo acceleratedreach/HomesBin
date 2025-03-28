@@ -14,9 +14,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Image, Facebook, Twitter, Instagram, Linkedin, Upload, MessageSquare, Calendar, Send, Plus, Copy, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { supabase } from "@/lib/supabase";
 
 interface UserData {
-  id: number;
+  id: string;
   username: string;
   email: string;
   emailVerified?: boolean;
@@ -26,39 +28,21 @@ interface UserData {
 export default function SocialContent() {
   const params = useParams();
   const [location, navigate] = useLocation();
+  const { user, isAuthenticated, loading: authLoading } = useSupabaseAuth();
+  const [initialAuthCheckComplete, setInitialAuthCheckComplete] = useState(false);
+  const [loadingCount, setLoadingCount] = useState(0);
+  
+  // Social platform state
+  const [activeTab, setActiveTab] = useState("instagram");
+  const [contentText, setContentText] = useState("");
+  const [openNewPost, setOpenNewPost] = useState(false);
+  
+  const { toast } = useToast();
   
   // Get username from URL params
   const usernameFromUrl = params.username;
   
-  // Get current user session
-  const { data: sessionData, isLoading: sessionLoading } = useQuery<{ user: UserData }>({
-    queryKey: ['/api/auth/session'],
-  });
-  
-  const currentUser = sessionData?.user;
-  
-  // Fetch user data 
-  const { data: userData, isLoading: userLoading } = useQuery<UserData>({
-    queryKey: ['/api/user'],
-    enabled: !!currentUser,
-  });
-
-  // Get listings - with explicit type definition
-  const { data: listings = [], isLoading: listingsLoading } = useQuery<any[]>({
-    queryKey: ['/api/listings'],
-    enabled: !!currentUser,
-  });
-
-  // Social platform state
-  const [activeTab, setActiveTab] = useState("instagram");
-  const [contentText, setContentText] = useState("");
-  
-  const { toast } = useToast();
-  
-  const { data: socialAccounts } = useQuery({
-    queryKey: ['/api/social-accounts'],
-  });
-  
+  // Handle post content submission
   const handlePostContent = () => {
     toast({
       title: "Post Created",
@@ -67,6 +51,180 @@ export default function SocialContent() {
     setOpenNewPost(false);
   };
   
+  // Perform a direct session check with Supabase on component mount
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        setLoadingCount(prev => prev + 1);
+        console.log("SocialContent: Performing direct Supabase session check...");
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("Error checking session:", error);
+        } else {
+          console.log("Direct session check result:", {
+            hasSession: !!data.session,
+            userId: data.session?.user?.id ? `${data.session.user.id.substring(0, 8)}...` : null
+          });
+        }
+        
+        setInitialAuthCheckComplete(true);
+        setLoadingCount(prev => prev - 1);
+      } catch (err) {
+        console.error("Exception during session check:", err);
+        setInitialAuthCheckComplete(true);
+        setLoadingCount(prev => prev - 1);
+      }
+    };
+    
+    checkSession();
+  }, []);
+  
+  // Get profile data for the authenticated user
+  const { data: profileData, isLoading: profileLoading } = useQuery({
+    queryKey: ['supabase-profile-social', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      setLoadingCount(prev => prev + 1);
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+          
+        if (error) {
+          console.error('Error fetching profile:', error);
+          return null;
+        }
+        
+        return data;
+      } catch (e) {
+        console.error('Exception in profile query:', e);
+        return null;
+      } finally {
+        setLoadingCount(prev => prev - 1);
+      }
+    },
+    enabled: !!user?.id,
+    retry: 2,
+    retryDelay: 1000
+  });
+
+  // Get listings with direct Supabase auth
+  const { data: listings = [], isLoading: listingsLoading } = useQuery<any[]>({
+    queryKey: ['/api/listings'],
+    queryFn: async (): Promise<any[]> => {
+      if (!user?.id) return [];
+      setLoadingCount(prev => prev + 1);
+      
+      try {
+        // Get access token from supabase
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        
+        if (!token) {
+          console.error('No access token available for listings request');
+          return [];
+        }
+        
+        // Make direct fetch with the token
+        const response = await fetch('/api/listings', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          console.warn('Listings API request failed:', response.status);
+          return [];
+        }
+        
+        const responseData = await response.json();
+        return Array.isArray(responseData) ? responseData : [];
+      } catch (e: any) {
+        console.error('Exception in listings query:', e);
+        return [];
+      } finally {
+        setLoadingCount(prev => prev - 1);
+      }
+    },
+    enabled: !!user?.id && isAuthenticated,
+    retry: 2,
+    retryDelay: 1000
+  });
+  
+  // Get social accounts with direct Supabase auth
+  const { data: socialAccounts, isLoading: socialAccountsLoading } = useQuery({
+    queryKey: ['/api/social-accounts'],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      setLoadingCount(prev => prev + 1);
+      
+      try {
+        // Get access token from supabase
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        
+        if (!token) {
+          console.error('No access token available for social accounts request');
+          return [];
+        }
+        
+        // Make direct fetch with the token
+        const response = await fetch('/api/social-accounts', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          console.warn('Social accounts API request failed:', response.status);
+          return [];
+        }
+        
+        const responseData = await response.json();
+        return Array.isArray(responseData) ? responseData : [];
+      } catch (e: any) {
+        console.error('Exception in social accounts query:', e);
+        return [];
+      } finally {
+        setLoadingCount(prev => prev - 1);
+      }
+    },
+    enabled: !!user?.id && isAuthenticated,
+    retry: 2,
+    retryDelay: 1000
+  });
+  
+  // IMPORTANT: Only redirect to login if we're completely sure the user is not authenticated
+  useEffect(() => {
+    if (initialAuthCheckComplete && !authLoading && !isAuthenticated && loadingCount === 0) {
+      console.log("Not authenticated, setting up timer before redirecting...");
+      
+      // Add a delay before redirecting to login to allow auth state to settle
+      const redirectTimer = setTimeout(() => {
+        // Double-check authentication status one more time before redirecting
+        supabase.auth.getSession().then(({ data }) => {
+          if (!data.session) {
+            console.log("No session found after final check, redirecting to login...");
+            navigate('/login', { replace: true });
+          } else {
+            console.log("Session found in final check, staying on social content");
+            // Force refresh auth context
+            window.location.reload();
+          }
+        }).catch(err => {
+          console.error("Error in final session check:", err);
+          navigate('/login', { replace: true });
+        });
+      }, 1500); // 1.5 second delay
+      
+      return () => clearTimeout(redirectTimer);
+    }
+  }, [initialAuthCheckComplete, authLoading, isAuthenticated, navigate, loadingCount]);
+
   // Sample generated content
   const sampleContent = {
     instagram: [
@@ -93,34 +251,68 @@ export default function SocialContent() {
   
   // If we're directly accessing the /social-content route, redirect to /:username/social-content
   useEffect(() => {
-    if (!usernameFromUrl && userData?.username) {
-      navigate(`/${userData.username}/social-content`, { replace: true });
+    if (!authLoading && isAuthenticated && user && !usernameFromUrl) {
+      const username = profileData?.username || 
+                       user.user_metadata?.username || 
+                       user.email?.split('@')[0];
+                       
+      if (username) {
+        console.log(`Redirecting to user-specific social content: /${username}/social-content`);
+        navigate(`/${username}/social-content`, { replace: true });
+      }
     }
-  }, [usernameFromUrl, userData, navigate]);
+  }, [authLoading, isAuthenticated, user, profileData, usernameFromUrl, navigate]);
   
-  // Check if user is authorized to view this page (can only view their own)
+  // Check if user is accessing their own social content page, redirect if not
   useEffect(() => {
-    if (usernameFromUrl && userData && usernameFromUrl !== userData.username) {
-      // Redirect to their own social content page if trying to access someone else's
-      navigate(`/${userData.username}/social-content`, { replace: true });
+    if (isAuthenticated && usernameFromUrl && user) {
+      const currentUsername = profileData?.username || 
+                              user.user_metadata?.username || 
+                              user.email?.split('@')[0];
+      
+      if (currentUsername && usernameFromUrl !== currentUsername) {
+        console.log(`User ${currentUsername} trying to access ${usernameFromUrl}'s social content, redirecting`);
+        navigate(`/${currentUsername}/social-content`, { replace: true });
+      }
     }
-  }, [usernameFromUrl, userData, navigate]);
+  }, [isAuthenticated, user, profileData, usernameFromUrl, navigate]);
   
   // Show loading state while we check authentication
-  if (sessionLoading || userLoading) {
-    return <div className="p-8">Loading social content dashboard...</div>;
+  if (authLoading || !initialAuthCheckComplete || loadingCount > 0 || profileLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-8">
+        <p className="text-lg mb-2">Loading social content dashboard...</p>
+        <p className="text-sm text-muted-foreground">Verifying your session...</p>
+      </div>
+    );
   }
   
-  // If no user data, show a message
-  if (!userData) {
-    return <div className="p-8">Please log in to view your social content dashboard</div>;
+  // Guard against not being authenticated
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-8">
+        <p className="text-lg mb-2">Authentication required</p>
+        <p className="text-sm text-muted-foreground mb-4">Please log in to view your social content dashboard</p>
+        <Button onClick={() => navigate('/login')}>Go to Login</Button>
+      </div>
+    );
   }
+
+  const userData = profileData || {
+    id: user.id,
+    email: user.email || '',
+    username: user.user_metadata?.username || user.email?.split('@')[0] || '',
+    fullName: user.user_metadata?.full_name || '',
+    emailVerified: user.email_confirmed_at ? true : false
+  };
   
   // Handle copying content to clipboard
   const handleCopyContent = (text: string) => {
     navigator.clipboard.writeText(text);
-    // In a real app, would show a toast notification here
-    alert("Copied to clipboard!");
+    toast({
+      title: "Copied to clipboard",
+      description: "Content copied to clipboard successfully"
+    });
   };
   
   // Get platform icon
@@ -138,8 +330,6 @@ export default function SocialContent() {
         return <Globe className="h-5 w-5" />;
     }
   };
-
-  const [openNewPost, setOpenNewPost] = useState(false);
   
   // Handle generating content
   const handleGenerateContent = (listingId: number) => {
@@ -152,7 +342,7 @@ export default function SocialContent() {
   
   return (
     <div className="min-h-screen flex flex-col">
-      <Header isAuthenticated={!!userData} />
+      <Header isAuthenticated={true} />
       
       <div className="flex-grow flex">
         <DashboardSidebar />
@@ -257,6 +447,8 @@ export default function SocialContent() {
                             id="postContent" 
                             placeholder="Write your post content here..." 
                             rows={4}
+                            value={contentText}
+                            onChange={(e) => setContentText(e.target.value)}
                           />
                         </div>
                         
@@ -310,15 +502,18 @@ export default function SocialContent() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Content Calendar</CardTitle>
-                    <CardDescription>Schedule and plan your social media content</CardDescription>
+                    <CardDescription>Manage your scheduled social media posts</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-center py-12">
-                      <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-medium mb-2">Content calendar coming soon</h3>
-                      <p className="text-muted-foreground mb-6">
-                        The content calendar feature will help you plan and schedule your social media posts
+                    <div className="text-center py-8">
+                      <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No scheduled posts</h3>
+                      <p className="text-gray-500 mb-6">
+                        Schedule social media posts to appear here
                       </p>
+                      <Button onClick={() => setOpenNewPost(true)}>
+                        <Plus className="h-4 w-4 mr-2" /> Create Post
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

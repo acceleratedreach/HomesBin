@@ -17,13 +17,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
-import { insertToSupabase } from "@/lib/supabase";
 
 const formSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters").max(50),
+  username: z.string()
+    .min(3, "Username must be at least 3 characters")
+    .max(50)
+    .regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, underscores and dashes"),
+  fullName: z.string().optional(),
   email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  confirmPassword: z.string().min(6, "Confirm password is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string().min(8, "Confirm password is required"),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
@@ -39,6 +42,7 @@ export default function RegisterForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       username: "",
+      fullName: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -52,11 +56,16 @@ export default function RegisterForm() {
       
       console.log('Registering user with email:', registerData.email);
       
-      // Sign up with Supabase
-      const { error } = await signUp(registerData.email, registerData.password, {
-        username: registerData.username,
-        full_name: "", // Can be updated later in profile settings
-      });
+      // Sign up with Supabase, including user metadata
+      const { error } = await signUp(
+        registerData.email, 
+        registerData.password, 
+        {
+          username: registerData.username,
+          fullName: registerData.fullName || "",
+          email: registerData.email
+        }
+      );
       
       if (error) {
         console.error('Supabase registration error:', error);
@@ -65,59 +74,52 @@ export default function RegisterForm() {
       
       console.log('Registration with Supabase successful');
       
-      // Create a profile manually as backup in case trigger doesn't work
-      try {
-        // Wait a moment to allow Supabase to process the signup
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Check if profile was automatically created
-        const response = await fetch(`/api/supabase/profiles?username=${encodeURIComponent(registerData.username)}`);
-        const existingProfiles = await response.json();
-        
-        if (!existingProfiles || existingProfiles.length === 0) {
-          console.log('No profile found after registration, creating manually');
-          
-          // Profile wasn't created automatically, create it manually
-          await fetch('/api/supabase/profiles', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              username: registerData.username,
-              email: registerData.email,
-              full_name: "",
-              bio: "",
-              avatar_url: "",
-            }),
-          });
-          
-          console.log('Manual profile creation completed');
-        } else {
-          console.log('Profile was created automatically');
-        }
-      } catch (profileError) {
-        // Just log the error but continue with the registration flow
-        console.error('Failed to verify/create profile:', profileError);
-      }
-      
       // Invalidate queries to refresh data
       await queryClient.invalidateQueries({ queryKey: ['/api/supabase/profiles'] });
       
-      // Redirect to login page since Supabase requires email verification
-      setLocation('/login');
+      // Determine next action - either redirect to profile setup or login
+      const redirectToProfileSetup = true; // You can make this configurable
+      
+      if (redirectToProfileSetup) {
+        // Redirect to profile setup with prefilled data
+        const setupUrl = `/profile-setup?username=${encodeURIComponent(registerData.username)}` + 
+                         `&email=${encodeURIComponent(registerData.email)}` +
+                         (registerData.fullName ? `&fullName=${encodeURIComponent(registerData.fullName)}` : '');
+        
+        console.log('Redirecting to profile setup:', setupUrl);
+        setLocation(setupUrl);
+      } else {
+        // Redirect to login page since Supabase requires email verification
+        setLocation('/login');
+      }
       
       toast({
         title: "Registration successful",
-        description: "Welcome to HomesBin! Please check your email to verify your account.",
+        description: "Welcome to HomesBin! Please complete your profile setup.",
       });
     } catch (error: any) {
       console.error('Registration error:', error);
-      toast({
-        title: "Registration failed",
-        description: error.message || "There was an error creating your account. Please try again.",
-        variant: "destructive",
-      });
+      
+      // Handle specific error cases
+      if (error.message?.toLowerCase().includes('email')) {
+        toast({
+          title: "Registration failed",
+          description: "This email is already registered. Please try logging in instead.",
+          variant: "destructive",
+        });
+      } else if (error.message?.toLowerCase().includes('username')) {
+        toast({
+          title: "Registration failed",
+          description: "This username is already taken. Please choose another username.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Registration failed",
+          description: error.message || "There was an error creating your account. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -139,7 +141,20 @@ export default function RegisterForm() {
                 <FormItem>
                   <FormLabel>Username</FormLabel>
                   <FormControl>
-                    <Input placeholder="johndoe" {...field} />
+                    <Input placeholder="johndoe" autoComplete="username" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="fullName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Full Name (optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="John Doe" autoComplete="name" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -152,7 +167,7 @@ export default function RegisterForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="john@example.com" {...field} />
+                    <Input type="email" placeholder="john@example.com" autoComplete="email" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -165,7 +180,7 @@ export default function RegisterForm() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" autoComplete="new-password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -178,7 +193,7 @@ export default function RegisterForm() {
                 <FormItem>
                   <FormLabel>Confirm Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" autoComplete="new-password" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload } from "lucide-react";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { supabase } from "@/lib/supabase";
 
 interface UserData {
-  id: number;
-    username: string;
-    email: string;
+  id: string;
+  username?: string;
+  email?: string;
   emailVerified?: boolean;
   fullName?: string;
   title?: string;
@@ -30,39 +32,86 @@ interface UserData {
 export default function Settings() {
   const params = useParams();
   const [location, navigate] = useLocation();
+  const { user, isAuthenticated, loading: authLoading } = useSupabaseAuth();
   
   // Get username from URL params
   const usernameFromUrl = params.username;
   
   // User form state
   const [formData, setFormData] = useState<Partial<UserData>>({});
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState("");
   
-  // Get current user session
-  const { data: sessionData, isLoading: sessionLoading } = useQuery<{ user: UserData }>({
-    queryKey: ['/api/auth/session'],
+  // Get profile data for the authenticated user
+  const { data: profileData, isLoading: profileLoading } = useQuery({
+    queryKey: ['settings-profile', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+          
+        if (error) {
+          console.error('Error fetching profile for settings:', error);
+          return null;
+        }
+        
+        return data;
+      } catch (e) {
+        console.error('Exception in profile query for settings:', e);
+        return null;
+      }
+    },
+    enabled: !!user?.id && isAuthenticated,
   });
   
-  const currentUser = sessionData?.user;
-  
-  // Fetch user data 
-  const { data: userData, isLoading: userLoading } = useQuery<UserData>({
-    queryKey: ['/api/user'],
-    enabled: !!currentUser,
-    onSuccess: (data) => {
-      // Initialize form with user data
+  // Initialize form with data when available
+  useEffect(() => {
+    if (profileData) {
       setFormData({
-        fullName: data.fullName || "",
-        title: data.title || "",
-        email: data.email || "",
-        phone: data.phone || "",
-        location: data.location || "",
-        experience: data.experience || "",
-        bio: data.bio || "",
-        specialties: data.specialties || [],
-        licenses: data.licenses || [],
+        fullName: profileData.full_name || "",
+        title: profileData.title || "",
+        email: user?.email || "",
+        phone: profileData.phone || "",
+        location: profileData.location || "",
+        experience: profileData.experience || "",
+        bio: profileData.bio || "",
+        specialties: profileData.specialties || [],
+        licenses: profileData.licenses || [],
+        avatar: profileData.avatar_url || ""
+      });
+    } else if (user) {
+      // Use data from the auth user if profile data isn't available
+      setFormData({
+        fullName: user.user_metadata?.full_name || "",
+        email: user.email || "",
+        // Use auth user metadata for other fields
+        username: user.user_metadata?.username || user.email?.split('@')[0] || ""
       });
     }
-  });
+  }, [profileData, user]);
+  
+  // Construct user info from Supabase auth + profile
+  const userData = user ? {
+    id: user.id,
+    username: profileData?.username || user.user_metadata?.username || user.email?.split('@')[0] || '',
+    email: user.email || '',
+    fullName: profileData?.full_name || user.user_metadata?.full_name || '',
+    emailVerified: !!user.email_confirmed_at,
+    // Add other properties from profileData
+    title: profileData?.title || '',
+    phone: profileData?.phone || '',
+    location: profileData?.location || '',
+    experience: profileData?.experience || '',
+    bio: profileData?.bio || '',
+    specialties: profileData?.specialties || [],
+    licenses: profileData?.licenses || [],
+    avatar: profileData?.avatar_url || ''
+  } : null;
   
   // If we're directly accessing the /settings route, redirect to /:username/settings
   useEffect(() => {
@@ -80,13 +129,24 @@ export default function Settings() {
   }, [usernameFromUrl, userData, navigate]);
   
   // Show loading state while we check authentication
-  if (sessionLoading || userLoading) {
-    return <div className="p-8">Loading settings...</div>;
+  if (authLoading || profileLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-8">
+        <p className="text-lg mb-2">Loading settings...</p>
+        <p className="text-sm text-muted-foreground">Retrieving your profile information...</p>
+      </div>
+    );
   }
   
   // If no user data, show a message
-  if (!userData) {
-    return <div className="p-8">Please log in to view your settings</div>;
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-8">
+        <p className="text-lg mb-2">Authentication required</p>
+        <p className="text-sm text-muted-foreground mb-4">Please log in to view your settings</p>
+        <Button onClick={() => navigate('/login')}>Go to Login</Button>
+      </div>
+    );
   }
   
   // Handle input changes
@@ -109,41 +169,55 @@ export default function Settings() {
     setFormData((prev) => ({ ...prev, licenses: licensesArray }));
   };
   
-  // Save profile data
-  const saveProfile = useMutation({
-    mutationFn: async (data: Partial<UserData>) => {
-      return await fetch('/api/user', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      }).then(res => {
-        if (!res.ok) {
-          throw new Error('Failed to update profile');
-        }
-        return res.json();
-      });
-    },
-    onSuccess: () => {
-      // Invalidate user data query to refresh with new data
-      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
-      alert('Profile updated successfully!');
-    },
-    onError: (error) => {
-      console.error('Error updating profile:', error);
-      alert('Failed to update profile. Please try again.');
-    }
-  });
-  
-  const handleSubmit = (e: React.FormEvent) => {
+  // Save profile data directly to Supabase
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    saveProfile.mutate(formData);
+    setSaveSuccess(false);
+    setSaveError("");
+    
+    try {
+      // Map form data to the expected format for the profiles table
+      const profileUpdateData = {
+        full_name: formData.fullName,
+        title: formData.title,
+        phone: formData.phone,
+        location: formData.location,
+        experience: formData.experience,
+        bio: formData.bio,
+        specialties: formData.specialties,
+        licenses: formData.licenses,
+        avatar_url: formData.avatar,
+        updated_at: new Date().toISOString()
+      };
+      
+      // Update the profile
+      const { error } = await supabase
+        .from('profiles')
+        .update(profileUpdateData)
+        .eq('id', user.id);
+      
+      if (error) {
+        console.error('Error updating profile:', error);
+        setSaveError(error.message);
+        return;
+      }
+      
+      // Refresh the profile data
+      queryClient.invalidateQueries({ queryKey: ['settings-profile', user.id] });
+      queryClient.invalidateQueries({ queryKey: ['supabase-profile', user.id] });
+      queryClient.invalidateQueries({ queryKey: ['supabase-profile-sidebar', user.id] });
+      
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (error: any) {
+      console.error('Exception updating profile:', error);
+      setSaveError(error.message || "An error occurred while saving");
+    }
   };
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header isAuthenticated={!!userData} />
+      <Header isAuthenticated={true} />
       
       <div className="flex-grow flex">
         <DashboardSidebar />
@@ -151,6 +225,18 @@ export default function Settings() {
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 md:px-8">
             <h1 className="text-2xl font-bold text-gray-900 mb-8">Settings</h1>
+            
+            {saveSuccess && (
+              <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded mb-6">
+                Profile updated successfully!
+              </div>
+            )}
+            
+            {saveError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded mb-6">
+                Error: {saveError}
+              </div>
+            )}
             
             <Tabs defaultValue="profile" className="space-y-8">
               <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid">
@@ -251,7 +337,7 @@ export default function Settings() {
                       />
                     </div>
                     
-              <div>
+                    <div>
                       <Label htmlFor="licenses">Licenses & Certifications (comma separated)</Label>
                       <Input
                         id="licenses"
@@ -278,14 +364,11 @@ export default function Settings() {
                         </Button>
                       </div>
                     </div>
-              </div>
-              
+                  </div>
+                  
                   <div className="flex justify-end">
-                    <Button 
-                      type="submit" 
-                      disabled={saveProfile.isPending}
-                    >
-                      {saveProfile.isPending ? "Saving..." : "Save Profile"}
+                    <Button type="submit" className="w-full md:w-auto">
+                      Save Profile
                     </Button>
                   </div>
                 </form>
@@ -372,7 +455,7 @@ export default function Settings() {
                   <div className="mt-6">
                     <Button>Save Preferences</Button>
                   </div>
-            </div>
+                </div>
               </TabsContent>
             </Tabs>
           </div>

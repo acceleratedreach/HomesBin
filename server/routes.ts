@@ -23,8 +23,10 @@ import { registerEmailRoutes } from "./routes/email";
 import { registerMarketingRoutes } from "./routes/marketing";
 import { registerThemeRoutes } from "./routes/theme";
 import { registerSupabaseRoutes } from "./routes/supabase";
-import { registerAuthRoutes } from "./routes/auth";
+import { registerAuthRoutes, supabaseAuth } from "./routes/auth";
 import { EmailService } from "./services/emailService";
+import { registerUserRoutes } from "./routes/user";
+import { registerListingsRoutes } from "./routes/listings";
 
 const SessionStore = MemoryStore(session);
 
@@ -106,10 +108,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Auth middleware
-  const isAuthenticated = (req: Request, res: Response, next: any) => {
+  const isAuthenticated = async (req: Request, res: Response, next: any) => {
+    // First try Supabase auth
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return supabaseAuth(req, res, next);
+    }
+    
+    // Fall back to passport/session auth if no Bearer token
     if (req.isAuthenticated()) {
       return next();
     }
+    
     res.status(401).json({ message: "Unauthorized" });
   };
 
@@ -776,6 +786,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerThemeRoutes(app, storage);
   registerSupabaseRoutes(app);
   registerAuthRoutes(app);
+  registerUserRoutes(app);
+  registerListingsRoutes(app);
 
   // Set up site URL if not set - used in email links
   if (!process.env.SITE_URL) {

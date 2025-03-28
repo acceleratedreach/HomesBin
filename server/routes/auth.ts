@@ -1,35 +1,173 @@
 import { Express, Request, Response, NextFunction } from 'express';
 import { supabase } from '../supabase-client';
 
+// Debugging function to get user info without throwing errors
+async function safeGetSession(req?: Request) {
+  try {
+    // Check for authorization header which might contain the Supabase token
+    if (req && req.headers.authorization) {
+      // Extract the token from the Bearer token
+      const token = req.headers.authorization.replace('Bearer ', '');
+      
+      if (token) {
+        console.log('Using token from Authorization header');
+        try {
+          // Use the token directly to get user
+          const { data: userData, error: userError } = await supabase.auth.getUser(token);
+          
+          if (userError) {
+            console.log('User error with token:', userError.message);
+            // Fall back to getSession
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            if (sessionError || !sessionData.session) {
+              return { session: null, user: null };
+            }
+            return { 
+              session: sessionData.session,
+              user: sessionData.session.user
+            };
+          }
+          
+          // Create a virtual session object using the token
+          return { 
+            session: { 
+              user: userData.user, 
+              access_token: token,
+              refresh_token: null,
+              expires_at: null,
+              expires_in: 3600
+            } as any, 
+            user: userData.user 
+          };
+        } catch (tokenError) {
+          console.error('Error using token:', tokenError);
+        }
+      }
+    }
+    
+    // Check cookies for token
+    if (req && req.headers.cookie) {
+      const cookies = req.headers.cookie.split(';').map(c => c.trim());
+      let token = null;
+      
+      // Look for Supabase access token in cookies
+      for (const cookie of cookies) {
+        if (cookie.startsWith('sb-access-token=')) {
+          token = cookie.substring('sb-access-token='.length);
+          console.log('Found token in cookies');
+          break;
+        }
+      }
+      
+      if (token) {
+        try {
+          // Use the token directly to get user
+          const { data: userData, error: userError } = await supabase.auth.getUser(token);
+          
+          if (userError) {
+            console.log('User error with cookie token:', userError.message);
+          } else {
+            return { 
+              session: { 
+                user: userData.user, 
+                access_token: token,
+                refresh_token: null,
+                expires_at: null,
+                expires_in: 3600
+              } as any, 
+              user: userData.user 
+            };
+          }
+        } catch (tokenError) {
+          console.error('Error using cookie token:', tokenError);
+        }
+      }
+    }
+    
+    // Default to normal session check
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      console.log('Session error:', error.message);
+      return { session: null, user: null };
+    }
+    return { 
+      session: data.session,
+      user: data.session?.user || null
+    };
+  } catch (err) {
+    console.error('Error in safeGetSession:', err);
+    return { session: null, user: null };
+  }
+}
+
 export function registerAuthRoutes(app: Express) {
   /**
    * Get the current session information
    */
   app.get('/api/auth/session', async (req: Request, res: Response) => {
     try {
-      // Check for authorization header
-      const authHeader = req.headers.authorization;
+      console.log('Session request headers:', req.headers);
       
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        // Get token from header
-        const token = authHeader.substring(7);
+      // Log session check attempt
+      console.log('🔍 Session endpoint called');
+      
+      // Check for cookies and headers that Supabase might send
+      const authHeader = req.headers.authorization;
+      const cookieHeader = req.headers.cookie;
+      
+      console.log('🔍 Cookie header:', cookieHeader ? 'present' : 'absent');
+      console.log('🔍 Auth header:', authHeader ? 'present' : 'absent');
+      
+      // Try to get the session safely, passing the request to check for the auth header
+      const { session, user } = await safeGetSession(req);
+      
+      if (!session || !user) {
+        console.log('🔍 No valid session found');
+        return res.status(401).json({ message: 'Not authenticated' });
+      }
+      
+      console.log('🔍 User authenticated:', user.id);
+      console.log('🔍 Auth verification succeeded with method: Bearer token');
+      
+      // Try to fetch profile data, but don't fail if it doesn't exist
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
         
-        // Use token to set auth context for Supabase
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError || !sessionData.session) {
-          console.error('Session error:', sessionError);
-          return res.status(401).json({ message: 'Not authenticated' });
+        if (profileError) {
+          console.log('🔍 Profile error:', profileError.message);
+          
+          // If profile doesn't exist, return basic user data
+          return res.status(200).json({
+            user: {
+              id: user.id,
+              email: user.email,
+              username: user.user_metadata?.username || user.email?.split('@')[0],
+              emailVerified: !!user.email_confirmed_at,
+              fullName: user.user_metadata?.full_name || '',
+            }
+          });
         }
         
-        // Get the user from the session
-        const user = sessionData.session.user;
+        console.log('🔍 Profile data found for user');
         
-        if (!user) {
-          return res.status(401).json({ message: 'No user in session' });
-        }
+        // Return user data with profile info
+        return res.status(200).json({
+          user: {
+            id: user.id,
+            email: user.email,
+            username: profileData?.username || user.user_metadata?.username || user.email?.split('@')[0],
+            emailVerified: !!user.email_confirmed_at,
+            fullName: profileData?.full_name || user.user_metadata?.full_name || '',
+          }
+        });
+      } catch (error) {
+        console.log('🔍 Error accessing profile data, returning basic user info');
         
-        // Return user data
+        // Return basic user data if profile fetch fails
         return res.status(200).json({
           user: {
             id: user.id,
@@ -40,9 +178,6 @@ export function registerAuthRoutes(app: Express) {
           }
         });
       }
-      
-      // No valid token found
-      return res.status(401).json({ message: 'Not authenticated' });
     } catch (error: any) {
       console.error('Error checking session:', error);
       res.status(500).json({
@@ -108,18 +243,30 @@ export function registerAuthRoutes(app: Express) {
    */
   app.use('/api/auth/check', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // Check the current session
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      // Use the token from the Authorization header if available
+      const authHeader = req.headers.authorization;
+      let user = null;
       
-      if (sessionError || !sessionData.session) {
-        return res.status(401).json({ message: 'Not authenticated' });
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+        
+        // Get the user from the token
+        const { data, error } = await supabase.auth.getUser(token);
+        if (!error && data.user) {
+          user = data.user;
+        }
+      } 
+      
+      // If no user from token, fall back to session
+      if (!user) {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (!sessionError && sessionData.session) {
+          user = sessionData.session.user;
+        }
       }
       
-      // Get the user from the session
-      const user = sessionData.session.user;
-      
       if (!user) {
-        return res.status(401).json({ message: 'No user in session' });
+        return res.status(401).json({ message: 'Not authenticated' });
       }
       
       // Send successful response
@@ -143,18 +290,30 @@ export function registerAuthRoutes(app: Express) {
 // Middleware to check if user is authenticated with Supabase
 export const supabaseAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Check current session
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    // First try to get user from the Authorization header
+    const authHeader = req.headers.authorization;
+    let user = null;
     
-    if (sessionError || !sessionData.session) {
-      return res.status(401).json({ message: 'Not authenticated' });
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+      
+      // Get the user from the token
+      const { data, error } = await supabase.auth.getUser(token);
+      if (!error && data.user) {
+        user = data.user;
+      }
     }
     
-    // Get the user from the session
-    const user = sessionData.session.user;
+    // If no user from token, fall back to session
+    if (!user) {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (!sessionError && sessionData.session) {
+        user = sessionData.session.user;
+      }
+    }
     
     if (!user) {
-      return res.status(401).json({ message: 'No user in session' });
+      return res.status(401).json({ message: 'Not authenticated' });
     }
     
     // Attach user data to request

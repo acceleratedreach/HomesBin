@@ -14,69 +14,89 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // Create a single supabase client for the server
 // Define a type for our mock Supabase client
-type MockSupabaseClient = {
-  from: (table: string) => {
-    select: (columns?: string) => {
-      eq: (column: string, value: any) => {
-        single: () => Promise<{ data: any | null, error: any | null }>;
-        limit: (n: number) => {
-          order: (column: string, options?: any) => Promise<{ data: any[], error: any | null }>;
-        };
-      };
-      order: (column: string, options?: any) => Promise<{ data: any[], error: any | null }>;
-      limit: (n: number) => {
-        order: (column: string, options?: any) => Promise<{ data: any[], error: any | null }>;
-      };
-    };
-  };
-  auth: {
-    signUp: (credentials: any) => Promise<{ data: any | null, error: any | null }>;
-    signIn: (credentials: any) => Promise<{ data: any | null, error: any | null }>;
-    signOut: () => Promise<{ error: any | null }>;
-  };
-};
+type MockSupabaseClient = any;
 
 let supabase: ReturnType<typeof createClient> | MockSupabaseClient;
 
 try {
   if (!supabaseUrl || !supabaseAnonKey) {
     console.warn('Using mock Supabase client as credentials are missing');
-    // Create a mock client that won't throw errors
+    // Create a simplified mock client that won't throw errors
     supabase = {
       from: () => ({
         select: () => ({
           eq: () => ({
             single: async () => ({ data: null, error: null }),
             limit: () => ({
-              order: () => ({ data: [], error: null })
+              order: () => Promise.resolve({ data: [], error: null })
             })
           }),
-          order: () => ({ data: [], error: null }),
+          order: () => Promise.resolve({ data: [], error: null }),
           limit: () => ({
-            order: () => ({ data: [], error: null })
+            order: () => Promise.resolve({ data: [], error: null })
           })
+        }),
+        insert: () => ({
+          select: () => Promise.resolve({ data: [], error: null })
+        }),
+        update: () => ({
+          eq: () => ({
+            select: () => Promise.resolve({ data: [], error: null })
+          })
+        }),
+        upsert: () => ({
+          select: () => ({
+            single: () => Promise.resolve({ data: [], error: null })
+          })
+        }),
+        delete: () => ({
+          eq: () => Promise.resolve({ error: null })
         })
       }),
       auth: {
+        getSession: async () => ({ data: { session: null }, error: null }),
+        getUser: async () => ({ data: { user: null }, error: null }),
         signUp: async () => ({ data: null, error: null }),
+        signInWithPassword: async () => ({ data: null, error: null }),
         signIn: async () => ({ data: null, error: null }),
-        signOut: async () => ({ error: null })
+        signOut: async () => ({ error: null }),
+        onAuthStateChange: () => ({ 
+          data: { subscription: { unsubscribe: () => {} } }, 
+          error: null 
+        })
       }
-    } as MockSupabaseClient;
+    } as any; // Using 'any' type assertion to bypass complex type issues
   } else {
+    // Create the actual Supabase client with proper credentials
     supabase = createClient(
       supabaseUrl,
-      supabaseAnonKey
+      supabaseAnonKey,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: false
+        },
+        global: {
+          headers: {
+            'X-Server-Client': 'true'
+          }
+        }
+      }
     );
+    console.log('Supabase client initialized with credentials');
   }
 } catch (error) {
   console.error('Failed to initialize Supabase client:', error);
-  // Create a minimal mock client
+  // Create a minimal mock client with 'any' type assertion
   supabase = { 
     from: () => ({ 
-      select: () => ({ data: [], error: null }) 
-    })
-  } as unknown as MockSupabaseClient;
+      select: () => Promise.resolve({ data: [], error: null }) 
+    }),
+    auth: {
+      getSession: async () => ({ data: { session: null }, error: null })
+    }
+  } as any;
 }
 
 export { supabase };
@@ -240,5 +260,23 @@ export class SupabaseService {
       console.error('Error in custom query:', error);
       throw error;
     }
+  }
+
+  /**
+   * Insert or update a record (upsert)
+   */
+  static async upsert(tableName: string, data: any) {
+    const { data: result, error } = await supabase
+      .from(tableName)
+      .upsert(data, { onConflict: 'id' })
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error(`Error upserting into ${tableName}:`, error);
+      throw error;
+    }
+
+    return result;
   }
 }
