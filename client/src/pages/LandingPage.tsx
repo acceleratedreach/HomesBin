@@ -16,6 +16,7 @@ import {
   Shield 
 } from "lucide-react";
 import { BackgroundPaths } from "@/components/ui/background-paths";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useEffect, useState } from "react";
 
 export default function LandingPage() {
@@ -71,6 +72,11 @@ export default function LandingPage() {
       
       <div className="fixed top-0 left-0 right-0 z-50 bg-transparent">
         <Header isAuthenticated={isAuthenticated} />
+        
+        {/* Theme toggle in the top corner */}
+        <div className="fixed top-4 right-4 z-50">
+          <ThemeToggle />
+        </div>
         
         {/* Verification banner - only shown when logged in but not verified */}
         {showVerificationBanner && (
