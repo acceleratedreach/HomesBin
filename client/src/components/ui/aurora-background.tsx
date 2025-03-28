@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import React, { ReactNode } from "react";
+import React, { ReactNode, useEffect, useState } from "react";
 
 interface AuroraBackgroundProps extends React.HTMLProps<HTMLDivElement> {
   children?: ReactNode;
@@ -15,42 +15,68 @@ export const AuroraBackground = ({
   className,
   ...props
 }: AuroraBackgroundProps) => {
+  // Use state to force higher z-index blur on first render for visual effect
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
     <div 
       className={cn(
-        "relative h-full flex flex-col items-center justify-center overflow-hidden antialiased [perspective:1000px] [transform-style:preserve-3d]",
+        "relative h-full w-full flex flex-col items-center justify-center overflow-hidden bg-white dark:bg-black",
         className
       )}
       {...props}
     >
       <div className="absolute inset-0 z-0 overflow-hidden">
-        {/* Aurora gradient elements */}
-        <div
-          className="absolute left-[calc(50%-20rem)] aspect-[1155/678] w-[40rem] -translate-x-1/2 bg-gradient-to-tr from-[#ff80b5] to-[#9089fc] opacity-30 sm:left-[calc(50%-30rem)] sm:w-[80rem]"
-          style={{
-            clipPath:
-              "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)",
-          }}
-        />
-        <div 
-          className="absolute -top-40 right-[calc(50%-11rem)] aspect-[1155/678] w-[80rem] translate-x-1/2 bg-gradient-to-tr from-[#ff80b5] to-[#9089fc] opacity-30 sm:right-[calc(50%-30rem)]"
-          style={{
-            clipPath:
-              "polygon(74.1% 44.1%, 100% 61.6%, 97.5% 26.9%, 85.5% 0.1%, 80.7% 2%, 72.5% 32.5%, 60.2% 62.4%, 52.4% 68.1%, 47.5% 58.3%, 45.2% 34.5%, 27.5% 76.7%, 0.1% 64.9%, 17.9% 100%, 27.6% 76.8%, 76.1% 97.7%, 74.1% 44.1%)",
-          }}
-        />
+        {/* Primary aurora gradient */}
+        <div className="absolute inset-x-0 top-0 h-[500px] w-full">
+          <div 
+            className="absolute h-full w-full rotate-[35deg] scale-x-150 bg-gradient-to-r from-[#4f56ff] via-[#ff4980] to-[#4f56ff] opacity-40 blur-[80px] dark:opacity-30 animate-aurora"
+            style={{ 
+              backgroundSize: "200% 100%",
+              transformOrigin: "center center",
+            }}
+          />
+        </div>
+        
+        {/* Secondary aurora gradient with offset timing */}
+        <div className="absolute inset-x-0 top-[200px] h-[600px] w-full">
+          <div 
+            className="absolute h-full w-full -rotate-[40deg] scale-x-150 bg-gradient-to-r from-[#cb5eee] via-[#4be1ec] to-[#cb5eee] opacity-30 blur-[80px] dark:opacity-20 animate-aurora"
+            style={{ 
+              backgroundSize: "200% 100%",
+              transformOrigin: "center center",
+              animationDelay: "-10s",
+            }}
+          />
+        </div>
+        
+        {/* Tertiary aurora gradient */}
+        <div className="absolute bottom-0 inset-x-0 h-[500px] w-full">
+          <div 
+            className="absolute h-full w-full rotate-[15deg] scale-x-150 bg-gradient-to-r from-[#ff6b6b] via-[#4899f4] to-[#ff6b6b] opacity-25 blur-[80px] dark:opacity-20 animate-aurora"
+            style={{ 
+              backgroundSize: "200% 100%",
+              transformOrigin: "center center",
+              animationDelay: "-5s",
+            }}
+          />
+        </div>
       </div>
       
       {/* Soft radial gradient to enhance content visibility */}
       {showRadialGradient && (
         <div 
           className="absolute inset-0 z-0 bg-gradient-radial from-transparent via-transparent to-white dark:to-black"
-          style={{ opacity: 0.8 }}
+          style={{ opacity: 0.85 }}
         />
       )}
 
       {/* Content positioned on top of gradients */}
-      <div className="relative z-10">{children}</div>
+      <div className="relative z-10 w-full">{children}</div>
     </div>
   );
 };
