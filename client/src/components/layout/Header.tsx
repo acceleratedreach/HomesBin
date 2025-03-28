@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Home } from "lucide-react";
 import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 import { fetchFromSupabase } from "@/lib/supabase";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 interface HeaderProps {
   isAuthenticated?: boolean;
@@ -77,7 +76,7 @@ export default function Header({ isAuthenticated: propIsAuthenticated }: HeaderP
   };
 
   return (
-    <header className="bg-white dark:bg-gray-900 shadow-sm">
+    <header className="bg-white shadow-sm">
       <div className="max-w-7xl mx-auto py-2 px-4 sm:px-6 flex items-center justify-between">
         <div className="flex items-center">
           <Link href="/">
@@ -85,13 +84,11 @@ export default function Header({ isAuthenticated: propIsAuthenticated }: HeaderP
               <div className="bg-blue-500 text-white p-1.5 rounded-md mr-2">
                 <Home className="h-5 w-5" />
               </div>
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">HomesBin</h1>
+              <h1 className="text-xl font-semibold text-gray-900">HomesBin</h1>
             </div>
           </Link>
         </div>
         <div className="flex items-center space-x-3">
-          <ThemeToggle />
-          
           {authStatus ? (
             <>
               <Button asChild variant="default" className="bg-blue-500 hover:bg-blue-600 rounded-md">

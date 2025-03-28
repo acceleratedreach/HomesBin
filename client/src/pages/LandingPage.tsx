@@ -15,8 +15,7 @@ import {
   Globe, 
   Shield 
 } from "lucide-react";
-import { AuroraBackground } from "@/components/ui/aurora-background";
-import { motion } from "framer-motion";
+import { BackgroundPaths } from "@/components/ui/background-paths";
 import { useEffect, useState } from "react";
 
 export default function LandingPage() {
@@ -25,7 +24,6 @@ export default function LandingPage() {
     username: string;
     email: string;
     emailVerified?: boolean;
-    [key: string]: any; // Allow for additional properties
   }
 
   interface SessionData {
@@ -38,7 +36,7 @@ export default function LandingPage() {
   });
   
   // Check if user is authenticated but email is not verified
-  const { data: userData } = useQuery<{ emailVerified?: boolean }>({
+  const { data: userData } = useQuery({
     queryKey: ['/api/user'],
     enabled: !!sessionData?.user,
   });
@@ -60,12 +58,7 @@ export default function LandingPage() {
   }, []);
   
   return (
-    <div className="min-h-screen flex flex-col relative">
-      <AuroraBackground className="fixed inset-0 z-0">
-        {/* This empty div is required because the AuroraBackground component requires children */}
-        <div></div>
-      </AuroraBackground>
-      
+    <div className="min-h-screen flex flex-col">
       <div className="fixed top-0 left-0 right-0 z-50 bg-transparent">
         <Header isAuthenticated={isAuthenticated} />
         
@@ -82,116 +75,89 @@ export default function LandingPage() {
         )}
       </div>
       
-      {/* Hero Section Content */}
-      <div className="relative z-10 h-screen w-full flex items-center justify-center">
-        <motion.div 
-          initial={{ opacity: 0.0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            delay: 0.3,
-            duration: 0.8,
-            ease: "easeInOut",
-          }}
-          className="text-center max-w-5xl mx-auto px-8"
-        >
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold mb-8 tracking-tighter text-slate-900 dark:text-white">
-            Real Estate Marketing
-          </h1>
-          <p className="text-xl md:text-2xl text-neutral-700 dark:text-neutral-300 mb-10 max-w-3xl mx-auto">
-            Create beautiful listing pages to showcase your properties and build your real estate brand with our powerful platform.
-          </p>
-          <div className="inline-block group relative bg-gradient-to-b from-black/10 to-white/10 dark:from-white/10 dark:to-black/10 p-px rounded-2xl backdrop-blur-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
-            <Button
-              variant="ghost"
-              asChild
-              className="rounded-[1.15rem] px-8 py-6 text-lg font-semibold backdrop-blur-md bg-white/95 hover:bg-white/100 dark:bg-black/95 dark:hover:bg-black/100 text-black dark:text-white transition-all duration-300 group-hover:-translate-y-0.5 border border-black/10 dark:border-white/10 hover:shadow-md dark:hover:shadow-neutral-800/50"
-            >
-              <Link href={isAuthenticated ? "/dashboard" : "/register"}>
-                <span className="opacity-90 group-hover:opacity-100 transition-opacity">
-                  {isAuthenticated ? "Go to Dashboard" : "Get Started"}
-                </span>
-                <span className="ml-3 opacity-70 group-hover:opacity-100 group-hover:translate-x-1.5 transition-all duration-300">
-                  →
-                </span>
-              </Link>
-            </Button>
-          </div>
-        </motion.div>
+      {/* Hero Section with Background Paths */}
+      <div className="w-full h-screen">
+        <BackgroundPaths 
+          title="Real Estate Marketing" 
+          subtitle="Create beautiful listing pages to showcase your properties and build your real estate brand with our powerful platform."
+          buttonText={isAuthenticated ? "Go to Dashboard" : "Get Started"} 
+          buttonLink={isAuthenticated ? "/dashboard" : "/register"}
+        />
       </div>
       
       {/* Main Content (Only shows after animation) */}
       {showContent && (
-        <div className="relative z-10 pt-16 pb-16">
+        <div className="bg-slate-50 pt-16 pb-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Feature Cards */}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-16">
-              <Card className="bg-white dark:bg-card border dark:border-slate-800">
+              <Card className="bg-white">
                 <CardContent className="p-6">
-                  <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full inline-block">
-                    <Home className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                  <div className="bg-blue-100 p-3 rounded-full inline-block">
+                    <Home className="h-6 w-6 text-blue-600" />
                   </div>
-                  <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Professional Listings</h3>
-                  <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">Professional Listings</h3>
+                  <p className="mt-2 text-base text-gray-500">
                     Create stunning property listings with photos, details, and virtual tours that attract buyers.
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-white dark:bg-card border dark:border-slate-800">
+              <Card className="bg-white">
                 <CardContent className="p-6">
-                  <div className="bg-violet-100 dark:bg-violet-900/30 p-3 rounded-full inline-block">
-                    <User className="h-6 w-6 text-violet-600 dark:text-violet-400" />
+                  <div className="bg-violet-100 p-3 rounded-full inline-block">
+                    <User className="h-6 w-6 text-violet-600" />
                   </div>
-                  <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Agent Branding</h3>
-                  <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">Agent Branding</h3>
+                  <p className="mt-2 text-base text-gray-500">
                     Build your personal brand with customizable agent profiles that showcase your expertise.
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-white dark:bg-card border dark:border-slate-800">
+              <Card className="bg-white">
                 <CardContent className="p-6">
-                  <div className="bg-indigo-100 dark:bg-indigo-900/30 p-3 rounded-full inline-block">
-                    <BarChart3 className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                  <div className="bg-indigo-100 p-3 rounded-full inline-block">
+                    <BarChart3 className="h-6 w-6 text-indigo-600" />
                   </div>
-                  <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Lead Generation</h3>
-                  <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">Lead Generation</h3>
+                  <p className="mt-2 text-base text-gray-500">
                     Capture and manage leads with built-in forms and automated follow-up tools.
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-white dark:bg-card border dark:border-slate-800">
+              <Card className="bg-white">
                 <CardContent className="p-6">
-                  <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full inline-block">
-                    <Share2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  <div className="bg-green-100 p-3 rounded-full inline-block">
+                    <Share2 className="h-6 w-6 text-green-600" />
                   </div>
-                  <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Social Integration</h3>
-                  <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">Social Integration</h3>
+                  <p className="mt-2 text-base text-gray-500">
                     Share your listings on social media with one click and expand your reach.
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-white dark:bg-card border dark:border-slate-800">
+              <Card className="bg-white">
                 <CardContent className="p-6">
-                  <div className="bg-amber-100 dark:bg-amber-900/30 p-3 rounded-full inline-block">
-                    <Zap className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                  <div className="bg-amber-100 p-3 rounded-full inline-block">
+                    <Zap className="h-6 w-6 text-amber-600" />
                   </div>
-                  <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">AI-Powered Tools</h3>
-                  <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">AI-Powered Tools</h3>
+                  <p className="mt-2 text-base text-gray-500">
                     Generate listing descriptions, social posts, and email campaigns with AI assistance.
                   </p>
                 </CardContent>
               </Card>
 
-              <Card className="bg-white dark:bg-card border dark:border-slate-800">
+              <Card className="bg-white">
                 <CardContent className="p-6">
-                  <div className="bg-red-100 dark:bg-red-900/30 p-3 rounded-full inline-block">
-                    <Map className="h-6 w-6 text-red-600 dark:text-red-400" />
+                  <div className="bg-red-100 p-3 rounded-full inline-block">
+                    <Map className="h-6 w-6 text-red-600" />
                   </div>
-                  <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">Interactive Lot Maps</h3>
-                  <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
+                  <h3 className="mt-4 text-lg font-medium text-gray-900">Interactive Lot Maps</h3>
+                  <p className="mt-2 text-base text-gray-500">
                     Create interactive development maps to showcase available lots and properties in your projects.
                   </p>
                 </CardContent>
@@ -199,10 +165,10 @@ export default function LandingPage() {
             </div>
 
             {/* CTA Section */}
-            <Card className="py-12 px-8 text-center mb-16 bg-white dark:bg-card border dark:border-slate-800">
+            <Card className="py-12 px-8 text-center mb-16 bg-white">
               <CardContent className="p-0">
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Ready to Transform Your Real Estate Business?</h2>
-                <p className="mt-4 text-lg text-gray-500 dark:text-gray-400">
+                <h2 className="text-3xl font-bold text-gray-900">Ready to Transform Your Real Estate Business?</h2>
+                <p className="mt-4 text-lg text-gray-500">
                   Join thousands of successful agents who have boosted their sales with our platform.
                 </p>
                 <div className="mt-8">
@@ -233,24 +199,24 @@ export default function LandingPage() {
             <div className="grid grid-cols-1 gap-8 mt-12 sm:grid-cols-3">
               <div className="text-center">
                 <div className="flex justify-center">
-                  <Globe className="h-10 w-10 text-primary-600 dark:text-primary" />
+                  <Globe className="h-10 w-10 text-primary-600" />
                 </div>
-                <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-gray-100">Global Reach</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Expand your market with listings that can be viewed worldwide.</p>
+                <h3 className="mt-2 text-lg font-medium text-gray-900">Global Reach</h3>
+                <p className="mt-1 text-sm text-gray-500">Expand your market with listings that can be viewed worldwide.</p>
               </div>
               <div className="text-center">
                 <div className="flex justify-center">
-                  <Zap className="h-10 w-10 text-primary-600 dark:text-primary" />
+                  <Zap className="h-10 w-10 text-primary-600" />
                 </div>
-                <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-gray-100">Instant Updates</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Make changes to your listings in real time with our intuitive editor.</p>
+                <h3 className="mt-2 text-lg font-medium text-gray-900">Instant Updates</h3>
+                <p className="mt-1 text-sm text-gray-500">Make changes to your listings in real time with our intuitive editor.</p>
               </div>
               <div className="text-center">
                 <div className="flex justify-center">
-                  <Shield className="h-10 w-10 text-primary-600 dark:text-primary" />
+                  <Shield className="h-10 w-10 text-primary-600" />
                 </div>
-                <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-gray-100">Secure Platform</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Your data is protected with enterprise-grade security measures.</p>
+                <h3 className="mt-2 text-lg font-medium text-gray-900">Secure Platform</h3>
+                <p className="mt-1 text-sm text-gray-500">Your data is protected with enterprise-grade security measures.</p>
               </div>
             </div>
           </div>

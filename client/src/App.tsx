@@ -24,7 +24,6 @@ import VerifyEmail from "@/components/auth/VerifyEmail";
 import ResetPassword from "@/components/auth/ResetPassword";
 import ForgotPassword from "@/components/auth/ForgotPassword";
 import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthContext";
-import { ThemeProvider } from "@/context/ThemeContext";
 import { useQuery } from "@tanstack/react-query";
 import ProfileSetup from "./pages/ProfileSetup";
 import { supabase } from "@/lib/supabase";
@@ -413,19 +412,17 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SupabaseAuthProvider>
-        <ThemeProvider>
-          <div className="app-container">
-            <button 
-              onClick={handleAuthError}
-              className="fixed bottom-4 right-4 bg-red-500 text-white p-2 rounded text-xs opacity-0 hover:opacity-100 z-50 transition-opacity"
-              title="Reset authentication state if you're having login issues"
-            >
-              Reset Auth
-            </button>
-            <MainAppRoutes />
-            <Toaster />
-          </div>
-        </ThemeProvider>
+        <div className="app-container">
+          <button 
+            onClick={handleAuthError}
+            className="fixed bottom-4 right-4 bg-red-500 text-white p-2 rounded text-xs opacity-0 hover:opacity-100 z-50 transition-opacity"
+            title="Reset authentication state if you're having login issues"
+          >
+            Reset Auth
+          </button>
+          <MainAppRoutes />
+          <Toaster />
+        </div>
       </SupabaseAuthProvider>
     </QueryClientProvider>
   );
