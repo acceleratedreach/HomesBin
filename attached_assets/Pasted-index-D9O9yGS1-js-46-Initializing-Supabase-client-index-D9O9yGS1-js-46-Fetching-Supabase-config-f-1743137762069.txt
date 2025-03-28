@@ -1,0 +1,45 @@
+index-D9O9yGS1.js:46 Initializing Supabase client...
+index-D9O9yGS1.js:46 Fetching Supabase config from server API...
+index-D9O9yGS1.js:48 Debug helper added - run window.checkSupabaseEnv() in console to verify Supabase environment
+index-D9O9yGS1.js:564 Auth state in MainAppRoutes: Object
+index-D9O9yGS1.js:564 Still loading auth state, delaying redirect decision
+index-D9O9yGS1.js:426 Initializing auth context and checking for existing session...
+index-D9O9yGS1.js:426 No session found on auth context initialization
+index-D9O9yGS1.js:564 Auth state in MainAppRoutes: Object
+index-D9O9yGS1.js:564 Redirect check: Object
+index-D9O9yGS1.js:46 Server returned config but missing Supabase URL or key
+DH @ index-D9O9yGS1.js:46Understand this errorAI
+index-D9O9yGS1.js:46 Failed to initialize Supabase with valid credentials
+DH @ index-D9O9yGS1.js:46Understand this errorAI
+api/auth/session:1 
+            
+            
+           Failed to load resource: the server responded with a status of 401 ()Understand this errorAI
+api/auth/session:1 
+            
+            
+           Failed to load resource: the server responded with a status of 401 ()Understand this errorAI
+index-D9O9yGS1.js:511 Login page: Checking session directly with Supabase
+index-D9O9yGS1.js:511 Login page state: Object
+index-D9O9yGS1.js:564 Auth state in MainAppRoutes: Object
+index-D9O9yGS1.js:564 Redirect check: Object
+index-D9O9yGS1.js:511 Direct session check result: Object
+index-D9O9yGS1.js:511 Login page state: Object
+index-D9O9yGS1.js:511 Login submission started: Object
+index-D9O9yGS1.js:511 Attempting login with email: jac***@***
+index-D9O9yGS1.js:426 Signing in user with email: jac***
+index-D9O9yGS1.js:511 Login page state: Object
+index-D9O9yGS1.js:564 Auth state in MainAppRoutes: Object
+index-D9O9yGS1.js:564 Still loading auth state, delaying redirect decision
+index-D9O9yGS1.js:426 Calling supabase.auth.signInWithPassword...
+index-D9O9yGS1.js:426 Supabase returned no data object
+u @ index-D9O9yGS1.js:426Understand this errorAI
+index-D9O9yGS1.js:511 Login page: Checking session directly with Supabase
+index-D9O9yGS1.js:511 Login page state: Object
+index-D9O9yGS1.js:564 Auth state in MainAppRoutes: Object
+index-D9O9yGS1.js:564 Redirect check: Object
+index-D9O9yGS1.js:511 Error returned from signIn function: Object
+c @ index-D9O9yGS1.js:511Understand this errorAI
+index-D9O9yGS1.js:511 Login error during sign in: Error: Login failed: No response data
+    at c (index-D9O9yGS1.js:511:218454)
+    at async index-D9O9yGS1.js:511:152045

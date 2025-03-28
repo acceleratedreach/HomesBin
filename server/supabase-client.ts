@@ -1,23 +1,59 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 
-// Load environment variables
+// Enhanced environment variable loading with fallbacks
+// Load from .env and .env.local files if they exist
 dotenv.config();
 dotenv.config({ path: '.env.local' });
 
+// Try to load from explicit paths where files might be located
+const possibleEnvPaths = [
+  '.env',
+  '.env.local',
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), '.env.local'),
+];
+
+// Load all possible env files
+for (const envPath of possibleEnvPaths) {
+  try {
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath });
+      console.log(`Loaded environment variables from ${envPath}`);
+    }
+  } catch (e) {
+    // Ignore errors from file checks
+  }
+}
+
+// Get credentials with more detailed logging
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Log availability of credentials in a secure way (not showing actual values)
+console.log('Supabase server configuration status:', {
+  hasUrl: !!supabaseUrl,
+  hasKey: !!supabaseAnonKey,
+  environment: process.env.NODE_ENV || 'development',
+  urlLength: supabaseUrl?.length || 0,
+  keyLength: supabaseAnonKey?.length || 0
+});
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Missing Supabase credentials. Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.');
 }
 
-// Create a single supabase client for the server
-// Define a type for our mock Supabase client
+// Define a more comprehensive type for our Supabase client
+type SupabaseClientType = ReturnType<typeof createClient>;
 type MockSupabaseClient = any;
 
-let supabase: ReturnType<typeof createClient> | MockSupabaseClient;
+// Create a single supabase client for the server
+let supabase: SupabaseClientType | MockSupabaseClient;
 
+// Initialize with enhanced error handling
 try {
   if (!supabaseUrl || !supabaseAnonKey) {
     console.warn('Using mock Supabase client as credentials are missing');
@@ -63,11 +99,12 @@ try {
         onAuthStateChange: () => ({ 
           data: { subscription: { unsubscribe: () => {} } }, 
           error: null 
-        })
+        }),
+        setSession: async () => ({ data: { session: null }, error: null }),
       }
     } as any; // Using 'any' type assertion to bypass complex type issues
   } else {
-    // Create the actual Supabase client with proper credentials
+    // Create the actual Supabase client with proper credentials and robust config
     supabase = createClient(
       supabaseUrl,
       supabaseAnonKey,
@@ -75,16 +112,43 @@ try {
         auth: {
           persistSession: true,
           autoRefreshToken: true,
-          detectSessionInUrl: false
+          detectSessionInUrl: false,
+          flowType: 'pkce', // More secure flow type
         },
         global: {
           headers: {
-            'X-Server-Client': 'true'
+            'X-Server-Client': 'true',
+            'X-Client-Info': 'server-node',
+          }
+        },
+        // Add per-request timeout to avoid hanging operations
+        db: {
+          schema: 'public',
+        },
+        // Custom default settings to improve reliability
+        realtime: {
+          params: {
+            eventsPerSecond: 10,
           }
         }
       }
     );
+
+    // Log successful initialization
     console.log('Supabase client initialized with credentials');
+    
+    // We'll test the client asynchronously without blocking initialization
+    (async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        console.log('Supabase client test query result:', { 
+          success: !error,
+          hasSession: !!data?.session 
+        });
+      } catch (testError) {
+        console.warn('Supabase client test query failed:', testError);
+      }
+    })();
   }
 } catch (error) {
   console.error('Failed to initialize Supabase client:', error);
@@ -94,7 +158,8 @@ try {
       select: () => Promise.resolve({ data: [], error: null }) 
     }),
     auth: {
-      getSession: async () => ({ data: { session: null }, error: null })
+      getSession: async () => ({ data: { session: null }, error: null }),
+      getUser: async () => ({ data: { user: null }, error: null })
     }
   } as any;
 }

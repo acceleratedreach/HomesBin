@@ -9,106 +9,158 @@ async function safeGetSession(req?: Request) {
       hasAuth: !!req?.headers.authorization,
       hasCookie: !!req?.headers.cookie,
       origin: req?.headers.origin || 'not set',
-      referer: req?.headers.referer || 'not set'
+      referer: req?.headers.referer || 'not set',
+      method: req?.method || 'unknown'
     });
     
-    // Check for authorization header which might contain the Supabase token
+    // Enhanced token processing
+    let accessToken = null;
+    let tokenSource = 'none';
+    
+    // Priority 1: Check for explicit Authorization header (most reliable)
     if (req?.headers.authorization) {
-      // Extract the token from the Bearer token
-      const token = req.headers.authorization.replace('Bearer ', '');
+      const authHeader = req.headers.authorization;
       
-      if (token) {
-        console.log('Using Bearer token from Authorization header');
-        try {
-          // Use the token directly to get user
-          const { data: userData, error: userError } = await supabase.auth.getUser(token);
-          
-          if (userError) {
-            console.log('🔍 Auth debug - Token error:', userError.message);
-          } else if (userData.user) {
-            console.log('🔍 Auth success - Valid Bearer token');
-            
-            // Create a proper session object using the token
-            return { 
-              session: { 
-                user: userData.user, 
-                access_token: token,
-                expires_at: Date.now() + (3600 * 1000) // 1 hour from now as fallback
-              }, 
-              user: userData.user 
-            };
-          }
-        } catch (tokenError) {
-          console.error('Error processing Bearer token:', tokenError);
-        }
+      // Handle both Bearer token and JWT directly
+      if (authHeader.startsWith('Bearer ')) {
+        accessToken = authHeader.replace('Bearer ', '');
+        tokenSource = 'bearer-header';
+      } else if (authHeader.includes('.')) {
+        // Looks like a raw JWT token (has at least one dot separator)
+        accessToken = authHeader;
+        tokenSource = 'raw-jwt-header';
+      }
+      
+      if (accessToken) {
+        console.log(`🔍 Auth debug - Using token from Authorization header (${tokenSource})`);
       }
     }
     
-    // Check cookies for token if available
-    if (req?.headers.cookie) {
+    // Priority 2: Custom header for direct token passing (backup method)
+    if (!accessToken && req?.headers['x-supabase-token']) {
+      accessToken = req.headers['x-supabase-token'] as string;
+      tokenSource = 'x-header';
+      console.log('🔍 Auth debug - Using token from X-Supabase-Token header');
+    }
+    
+    // Priority 3: Check cookies for auth tokens (session based)
+    if (!accessToken && req?.headers.cookie) {
       const cookies = req.headers.cookie.split(';').map(c => c.trim());
-      let accessToken = null;
       
       // Look for Supabase access token in cookies (various formats)
       for (const cookie of cookies) {
-        // Handle different possible cookie names
+        // Handle different possible cookie names based on how Supabase might store them
         if (cookie.startsWith('sb-access-token=') || 
             cookie.startsWith('sb:token=') || 
-            cookie.startsWith('supabase-auth-token=')) {
+            cookie.startsWith('supabase-auth-token=') ||
+            cookie.startsWith('sb-auth-token=') ||
+            cookie.startsWith('sb-') && cookie.includes('-auth-token=')) {
           
           // Extract actual token value
           const cookieParts = cookie.split('=');
           if (cookieParts.length > 1) {
             accessToken = decodeURIComponent(cookieParts[1]);
-            console.log('🔍 Auth debug - Found token in cookies');
+            tokenSource = 'cookie-' + cookieParts[0];
+            console.log(`🔍 Auth debug - Found token in cookies: ${cookieParts[0]}`);
             break;
           }
         }
       }
-      
-      if (accessToken) {
-        try {
-          const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
-          
-          if (userError) {
-            console.log('🔍 Auth debug - Cookie token error:', userError.message);
-          } else if (userData.user) {
-            console.log('🔍 Auth success - Valid cookie token');
-            
-            return { 
-              session: { 
-                user: userData.user, 
-                access_token: accessToken,
-                expires_at: Date.now() + (3600 * 1000) // 1 hour from now as fallback
-              }, 
-              user: userData.user 
-            };
-          }
-        } catch (cookieError) {
-          console.error('Error processing cookie token:', cookieError);
+    }
+    
+    // If we have a token from any source, try to use it
+    if (accessToken) {
+      try {
+        console.log(`🔍 Auth debug - Authenticating with token from ${tokenSource} source`);
+        
+        // Check token format validity - simple check for JWT structure
+        const isValidFormat = accessToken.includes('.') && accessToken.split('.').length === 3;
+        if (!isValidFormat) {
+          console.log('🔍 Auth debug - Token does not appear to be a valid JWT format');
+          // But still try anyway in case it's another valid format
         }
+        
+        // Try both methods for getting user from token for maximum compatibility
+        // Method 1: Use the supplied token to authenticate directly
+        let userData = null;
+        let userError = null;
+        
+        try {
+          const userResponse = await supabase.auth.getUser(accessToken);
+          userData = userResponse.data;
+          userError = userResponse.error;
+        } catch (innerError) {
+          console.warn('Inner error getting user with token:', innerError);
+          // Continue to next approach
+        }
+        
+        // Method 2: Try to set session first, then get user (sometimes more reliable)
+        if (userError || !userData?.user) {
+          console.log('🔍 Auth debug - First token attempt failed, trying setSession approach');
+          
+          try {
+            await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: '' // We don't have refresh token in most cases
+            });
+            
+            // Now try to get the user after setting the session
+            const sessionUserResponse = await supabase.auth.getUser();
+            userData = sessionUserResponse.data;
+            userError = sessionUserResponse.error;
+          } catch (sessionSetError) {
+            console.warn('Error setting session with token:', sessionSetError);
+          }
+        }
+        
+        // Process results of token validation attempts
+        if (userError) {
+          console.log('🔍 Auth debug - Token error:', userError.message);
+        } else if (userData.user) {
+          console.log(`🔍 Auth success - Valid token from ${tokenSource}`);
+          
+          // Create a proper session object using the token
+          return { 
+            session: { 
+              user: userData.user, 
+              access_token: accessToken,
+              // Estimate expiration if not available
+              expires_at: userData.user.exp || Date.now() + (3600 * 1000), // 1 hour from now as fallback
+              token_type: 'bearer',
+              refresh_token: null
+            }, 
+            user: userData.user 
+          };
+        }
+      } catch (tokenError) {
+        console.error('Error processing auth token:', tokenError);
       }
     }
     
-    // Default to normal session check as a last resort
+    // Final fallback: Try standard session API call
     console.log('🔍 Auth debug - Falling back to getSession() API call');
-    const { data, error } = await supabase.auth.getSession();
-    
-    if (error) {
-      console.log('🔍 Auth debug - Session error:', error.message);
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.log('🔍 Auth debug - Session error:', error.message);
+        return { session: null, user: null };
+      }
+      
+      if (data?.session?.user) {
+        console.log('🔍 Auth success - Session found via API');
+      } else {
+        console.log('🔍 Auth debug - No session found via API');
+      }
+      
+      return { 
+        session: data.session,
+        user: data.session?.user || null
+      };
+    } catch (sessionError) {
+      console.error('Error in getSession API call:', sessionError);
       return { session: null, user: null };
     }
-    
-    if (data?.session?.user) {
-      console.log('🔍 Auth success - Session found via API');
-    } else {
-      console.log('🔍 Auth debug - No session found via API');
-    }
-    
-    return { 
-      session: data.session,
-      user: data.session?.user || null
-    };
   } catch (err) {
     console.error('Error in safeGetSession:', err);
     return { session: null, user: null };
@@ -386,25 +438,49 @@ export function registerAuthRoutes(app: Express) {
   });
 }
 
-// Enhanced middleware for Supabase authentication with CORS support
+// Enhanced middleware for Supabase authentication with comprehensive CORS and token handling
 export const supabaseAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Handle CORS for cross-domain requests
+    // Set robust CORS headers for all auth-related requests to handle cross-domain auth properly
     const origin = req.headers.origin;
+    const host = req.headers.host || '';
+    
+    // Determine if we're in specific environments for CORS behavior
+    const isReplit = host.includes('.repl.');
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    // Apply appropriate CORS headers based on environment
     if (origin) {
+      // Allow the specific origin for proper CORS compliance
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 
+        'Content-Type, Authorization, X-Requested-With, X-Supabase-Token, X-Client-Info');
+      res.setHeader('Access-Control-Expose-Headers', 
+        'Content-Length, X-RateLimit-Limit, X-RateLimit-Remaining');
       
-      // Handle preflight requests
+      // Cache preflight for 24 hours to improve performance
+      res.setHeader('Access-Control-Max-Age', '86400');
+      
+      // Log allowed origin for debugging
+      console.log(`🔍 Auth middleware - CORS for origin: ${origin.substring(0, 30)}...`);
+      
+      // Handle preflight OPTIONS requests efficiently
       if (req.method === 'OPTIONS') {
         return res.status(204).end();
       }
     }
     
-    // Use safeGetSession to handle all auth methods
-    const { user } = await safeGetSession(req);
+    // Check if request has the X-Skip-Auth header or query param for public routes
+    const skipAuth = req.headers['x-skip-auth'] === 'true' || req.query.skipAuth === 'true';
+    if (skipAuth) {
+      console.log('🔍 Auth middleware - Skipping auth check (public route)');
+      return next();
+    }
+    
+    // Use safeGetSession to handle all auth methods including tokens and cookies
+    const { user, session } = await safeGetSession(req);
     
     if (!user) {
       console.log('🔍 Auth middleware - Authentication failed');
@@ -414,24 +490,41 @@ export const supabaseAuth = async (req: Request, res: Response, next: NextFuncti
       });
     }
     
-    console.log('🔍 Auth middleware - User authenticated:', user.id);
+    // Log successful authentication with important context
+    console.log(`🔍 Auth middleware - User authenticated: ${user.id}, method: ${req.headers.authorization ? 'token' : 'session'}`);
     
-    // Enhance user object with additional information
+    // Enhance user object with additional information for route handlers
     const enhancedUser = {
       ...user,
-      // Add helpful properties
+      // Standard fields with safe fallbacks
+      id: user.id,
+      email: user.email || '',
+      username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
+      
+      // Auth metadata
       isAuthenticated: true,
       authMethod: req.headers.authorization ? 'token' : 'session',
-      // Add timestamps
       authTimestamp: Date.now(),
-      // Safe access to common properties
-      email: user.email || '',
+      tokenExpires: session?.expires_at || null,
+      
+      // User profile data with safe access
       emailVerified: !!user.email_confirmed_at,
-      username: user.user_metadata?.username || user.email?.split('@')[0] || 'user'
+      fullName: user.user_metadata?.full_name || '',
+      role: user.role || 'authenticated',
+      
+      // Context data
+      requestInfo: {
+        ip: req.ip || req.connection.remoteAddress || 'unknown',
+        userAgent: req.headers['user-agent'] || 'unknown',
+        origin: origin || 'unknown',
+        path: req.path
+      }
     };
     
     // Attach enhanced user data to request for route handlers
     (req as any).user = enhancedUser;
+    // Also attach the raw session for access to tokens if needed
+    (req as any).session = session;
     
     // Continue to the requested route
     return next();

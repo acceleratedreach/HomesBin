@@ -47,16 +47,37 @@ async function initializeSupabase() {
       if (response.ok) {
         const config = await response.json();
         
-        if (config?.supabase?.url && config?.supabase?.key) {
+        // Log the actual raw config for debugging
+        console.log('Received config from server:', JSON.stringify(config));
+        
+        // Extract Supabase credentials
+        const supabaseUrl = config?.supabase?.url;
+        const supabaseKey = config?.supabase?.key;
+        
+        // Log specific credential check
+        console.log('Config extraction check:', { 
+          hasUrl: !!supabaseUrl, 
+          hasKey: !!supabaseKey,
+          urlValue: supabaseUrl ? `${supabaseUrl.substring(0, 8)}...` : 'missing',
+          keyValue: supabaseKey ? `${supabaseKey.substring(0, 5)}...` : 'missing'
+        });
+        
+        // Strict type check for empty strings too
+        if (supabaseUrl && supabaseKey && typeof supabaseUrl === 'string' && typeof supabaseKey === 'string') {
           console.log('Supabase configuration loaded from server API');
           
-          // Set the site URL for Supabase
-          console.log('Setting Supabase site URL to:', window.location.origin);
+          // Set up window global config for debugging and potential reuse
+          if (typeof window !== 'undefined') {
+            window.__SUPABASE_CONFIG__ = {
+              url: supabaseUrl,
+              key: supabaseKey
+            };
+          }
           
           // Create the client with server-provided credentials
           supabase = createClient(
-            config.supabase.url,
-            config.supabase.key,
+            supabaseUrl,
+            supabaseKey,
             {
               auth: {
                 persistSession: true,
@@ -114,13 +135,38 @@ async function initializeSupabase() {
             }
           );
           
+          // Log successful initialization
           console.log('Supabase client initialized successfully with API config');
+          
+          // Try to immediately check if the client works
+          try {
+            const { data, error } = await supabase.auth.getSession();
+            console.log('Initial session check:', {
+              success: !error,
+              hasSession: !!data?.session,
+              error: error ? error.message : null
+            });
+          } catch (sessionError) {
+            console.error('Error checking session after initialization:', sessionError);
+          }
+          
           return;
         } else {
-          console.error('Server returned config but missing Supabase URL or key');
+          console.error('Server returned config but missing Supabase URL or key:', {
+            urlPresent: !!supabaseUrl,
+            keyPresent: !!supabaseKey,
+            urlType: typeof supabaseUrl,
+            keyType: typeof supabaseKey
+          });
         }
       } else {
-        console.error('Failed to fetch Supabase config from server:', response.status);
+        console.error('Failed to fetch Supabase config from server:', response.status, response.statusText);
+        try {
+          const errorText = await response.text();
+          console.error('Error response:', errorText.substring(0, 200));
+        } catch (e) {
+          console.error('Could not extract error text');
+        }
       }
     } catch (apiError) {
       console.error('Error fetching config from API:', apiError);

@@ -33,12 +33,30 @@ const SessionStore = MemoryStore(session);
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add endpoint to provide Supabase credentials to the client
   app.get('/api/config', (req, res) => {
+    // Allow cross-origin for this endpoint specifically
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    
+    // Detect if this is a preflight OPTIONS request
+    if (req.method === 'OPTIONS') {
+      return res.status(204).send();
+    }
+    
     // Determine the site URL from headers for proper redirects
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
-    const siteUrl = `${protocol}://${host}`;
+    const origin = req.headers.origin || '';
     
-    // Validate environment variables and log helpful debug info
+    // Try to use the best site URL possible
+    // 1. Use the Origin header if available (best for cross-domain requests)
+    // 2. Otherwise, fallback to constructed URL from protocol and host
+    const siteUrl = origin || `${protocol}://${host}`;
+    
+    // Check if we're in a Replit environment
+    const isReplit = host?.includes('.repl.co') || host?.includes('.replit.dev');
+    
+    // Read environment variables for Supabase
     const supabaseUrl = process.env.SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_ANON_KEY;
     
@@ -48,18 +66,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasKey: !!supabaseKey,
         siteUrl
       });
-    } else {
-      console.log('[API Config] Providing Supabase config with valid credentials');
-    }
+      
+      // Return clear error for troubleshooting
+      return res.status(500).json({
+        error: 'Missing Supabase configuration',
+        details: {
+          missingUrl: !supabaseUrl,
+          missingKey: !supabaseKey
+        }
+      });
+    } 
+    
+    // Success case - all config present
+    console.log('[API Config] Providing Supabase config with valid credentials', {
+      urlLength: supabaseUrl.length,
+      keyLength: supabaseKey.length,
+      detectedSiteUrl: siteUrl,
+      isReplit
+    });
 
+    // Enhanced response with more context and debugging info
     res.json({
       supabase: {
-        url: supabaseUrl || '',
-        key: supabaseKey || '',
+        url: supabaseUrl,
+        key: supabaseKey,
         siteUrl: siteUrl
       },
       production: process.env.NODE_ENV === 'production',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      environment: {
+        isReplit,
+        host: host || 'unknown',
+        protocol: protocol || 'unknown'
+      }
     });
   });
   // Session setup

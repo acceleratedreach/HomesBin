@@ -6,24 +6,44 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Add CORS middleware for cross-domain authentication
+// Add enhanced CORS middleware with production-ready settings
 app.use((req, res, next) => {
-  // For API requests, allow CORS with credentials
-  if (req.path.startsWith('/api')) {
-    const origin = req.headers.origin;
+  // For all requests, provide comprehensive CORS headers
+  // This ensures cross-domain requests work properly in all environments
+  const origin = req.headers.origin || '';
+  const host = req.headers.host || '';
+  
+  // Detect if we're in specific environments
+  const isReplit = host.includes('.repl.');
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isHomesbin = origin.includes('homesbin.com');
+  
+  // Determine which origins to allow
+  let allowedOrigin = '*'; // Default to all origins for dev
+  
+  if (origin) {
+    // If there's a specific origin in the request, allow it
+    // This handles direct browser requests properly
+    allowedOrigin = origin;
     
-    // Allow from any origin that sent a request
-    if (origin) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Credentials', 'true');
-      res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    // Log CORS handling for debugging
+    if (req.path.startsWith('/api')) {
+      log(`CORS: Allowing origin ${origin.substring(0, 30)}... for ${req.method} ${req.path}`, 'cors');
     }
-    
-    // Handle preflight requests
-    if (req.method === 'OPTIONS') {
-      return res.status(204).end();
-    }
+  }
+  
+  // Set comprehensive CORS headers
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Api-Key, X-Client-Info');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Length, X-RateLimit-Limit, X-RateLimit-Remaining');
+  res.setHeader('Access-Control-Max-Age', '86400'); // Cache preflight for 24 hours
+  
+  // Handle preflight OPTIONS requests efficiently
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
   }
   
   next();
