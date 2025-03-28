@@ -1,7 +1,20 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Session, User } from '@supabase/supabase-js';
+import { Session, User, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+
+// Define types for the Supabase auth listener return value
+interface Subscription {
+  id: string;
+  callback: (event: AuthChangeEvent, session: Session | null) => void;
+  unsubscribe: () => void;
+}
+
+interface AuthListener {
+  data: {
+    subscription: Subscription;
+  };
+}
 
 // Define the context types
 type SupabaseAuthContextType = {
@@ -36,52 +49,147 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Initial session check and auth state change listener setup
+  // Initial session check and auth state change listener setup with improved reliability
   useEffect(() => {
     const initializeAuth = async () => {
       try {
         console.log('Initializing auth context and checking for existing session...');
         
-        // Get the current session, if any
-        const { data, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error('Error getting initial session:', error);
-          setLoading(false);
-          return;
-        }
-        
-        // If we have a session, set it and the user
-        if (data.session) {
-          console.log('Found existing session on auth context initialization');
-          setSession(data.session);
-          setUser(data.session.user);
-        } else {
-          console.log('No session found on auth context initialization');
-        }
-        
-        // Set up auth state change listener
-        const { data: authListener } = supabase.auth.onAuthStateChange((event, newSession) => {
-          console.log('Auth state changed:', event);
-          console.log('Session exists:', !!newSession);
+        // Step 1: Check for stored tokens as backup
+        let backupTokens = null;
+        try {
+          const accessToken = localStorage.getItem('sb-access-token');
+          const refreshToken = localStorage.getItem('sb-refresh-token');
           
-          setSession(newSession);
-          setUser(newSession?.user || null);
-          
-          // Specifically handle sign in events to ensure the session is properly established
-          if (event === 'SIGNED_IN' && newSession) {
-            console.log('User signed in, session established');
-          } else if (event === 'SIGNED_OUT') {
-            console.log('User signed out, session cleared');
+          if (accessToken && refreshToken) {
+            console.log('Found backup tokens in localStorage, will use if needed');
+            backupTokens = { access_token: accessToken, refresh_token: refreshToken };
           }
-        });
+        } catch (storageError) {
+          console.warn('Error checking for backup tokens:', storageError);
+        }
         
-        // Set up periodic session checks
+        // Step 2: Primary session check through Supabase API
+        let sessionResult;
+        try {
+          console.log('Getting current session from Supabase...');
+          sessionResult = await supabase.auth.getSession();
+        } catch (sessionError) {
+          console.error('Error in primary session check:', sessionError);
+          // If the primary check fails, we'll proceed to fallback methods
+        }
+        
+        // Step 3: Handle error or missing session with fallback
+        if (sessionResult?.error || !sessionResult?.data?.session) {
+          console.warn('Primary session check failed or returned no session');
+          
+          if (sessionResult?.error) {
+            console.error('Session check error:', sessionResult.error);
+          }
+          
+          // Try to recover using backup tokens if available
+          if (backupTokens) {
+            try {
+              console.log('Attempting session recovery with backup tokens...');
+              const recoveryResult = await supabase.auth.setSession(backupTokens);
+              
+              if (recoveryResult.error) {
+                console.error('Failed to recover session with backup tokens:', recoveryResult.error);
+              } else if (recoveryResult.data?.session) {
+                console.log('Successfully recovered session from backup tokens');
+                sessionResult = recoveryResult;
+              }
+            } catch (recoveryError) {
+              console.error('Error during session recovery attempt:', recoveryError);
+            }
+          }
+        }
+        
+        // Step 4: Set session state based on available data
+        if (sessionResult?.data?.session) {
+          console.log('Session found, setting auth context state');
+          setSession(sessionResult.data.session);
+          setUser(sessionResult.data.session.user);
+          
+          // Ensure tokens are stored for resilience
+          try {
+            localStorage.setItem('sb-access-token', sessionResult.data.session.access_token);
+            localStorage.setItem('sb-refresh-token', sessionResult.data.session.refresh_token);
+            localStorage.setItem('sb-user-id', sessionResult.data.session.user.id);
+            localStorage.setItem('sb-session-active', 'true');
+            localStorage.setItem('sb-auth-timestamp', Date.now().toString());
+          } catch (storageError) {
+            console.warn('Failed to store session tokens for resilience:', storageError);
+          }
+        } else {
+          console.log('No valid session found after all attempts');
+        }
+        
+        // Step 5: Set up auth state change listener with improved error handling
+        let authListener: AuthListener | null = null;
+        try {
+          const listenerResult = supabase.auth.onAuthStateChange((event, newSession) => {
+            console.log('Auth state changed:', event);
+            console.log('Session exists:', !!newSession);
+            
+            // Update state
+            setSession(newSession);
+            setUser(newSession?.user || null);
+            
+            // Event-specific handling
+            if (event === 'SIGNED_IN' && newSession) {
+              console.log('User signed in, session established');
+              
+              // Store tokens for resilience
+              try {
+                localStorage.setItem('sb-access-token', newSession.access_token);
+                localStorage.setItem('sb-refresh-token', newSession.refresh_token);
+                localStorage.setItem('sb-user-id', newSession.user.id);
+                localStorage.setItem('sb-session-active', 'true');
+                localStorage.setItem('sb-auth-timestamp', Date.now().toString());
+              } catch (e) {
+                console.warn('Could not store tokens on sign in:', e);
+              }
+            } else if (event === 'SIGNED_OUT') {
+              console.log('User signed out, session cleared');
+              // Clear backup tokens
+              try {
+                localStorage.removeItem('sb-access-token');
+                localStorage.removeItem('sb-refresh-token');
+                localStorage.removeItem('sb-user-id');
+                localStorage.removeItem('sb-session-active');
+              } catch (e) {
+                console.warn('Could not clear tokens on sign out:', e);
+              }
+            } else if (event === 'TOKEN_REFRESHED' && newSession) {
+              console.log('Session token refreshed, updating stored tokens');
+              // Update backup tokens
+              try {
+                localStorage.setItem('sb-access-token', newSession.access_token);
+                localStorage.setItem('sb-refresh-token', newSession.refresh_token);
+                localStorage.setItem('sb-auth-timestamp', Date.now().toString());
+              } catch (e) {
+                console.warn('Could not update tokens on refresh:', e);
+              }
+            }
+          });
+          
+          authListener = listenerResult.data;
+        } catch (listenerError) {
+          console.error('Failed to set up auth state change listener:', listenerError);
+        }
+        
+        // Step 6: Set up improved session monitoring
         const sessionCheckInterval = setInterval(async () => {
           try {
-            // Avoid pointless checks if already signed out
+            // Skip if already signed out
             if (!session) return;
             
-            console.log('Periodic session check...');
+            // Only log session check when in development to reduce noise
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('Periodic session check...');
+            }
+            
             const { data, error } = await supabase.auth.getSession();
             
             if (error) {
@@ -91,33 +199,61 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
             
             if (!data.session && session) {
               console.warn('Session lost during periodic check, updating state');
+              // Before clearing, try one last recovery attempt
+              try {
+                const backupAccess = localStorage.getItem('sb-access-token');
+                const backupRefresh = localStorage.getItem('sb-refresh-token');
+                
+                if (backupAccess && backupRefresh) {
+                  console.log('Attempting recovery during session check...');
+                  const recoveryResult = await supabase.auth.setSession({
+                    access_token: backupAccess,
+                    refresh_token: backupRefresh
+                  });
+                  
+                  if (!recoveryResult.error && recoveryResult.data.session) {
+                    console.log('Successfully recovered session during check');
+                    setSession(recoveryResult.data.session);
+                    setUser(recoveryResult.data.session.user);
+                    return;
+                  }
+                }
+              } catch (recoveryError) {
+                console.error('Recovery failed during session check:', recoveryError);
+              }
+              
+              // If recovery failed, clear the state
               setSession(null);
               setUser(null);
             }
           } catch (e) {
             console.error('Error in periodic session check:', e);
           }
-        }, 30000); // Check every 30 seconds
+        }, 60000); // Check every minute (reduced frequency)
         
-        // Set loading to false once initialization is complete
+        // Step 7: Complete initialization
         setLoading(false);
         
-        // Cleanup function to unsubscribe
+        // Step 8: Cleanup function
         return () => {
-          if (authListener?.subscription) {
+          if (authListener && authListener.subscription) {
             console.log('Cleaning up auth listener');
-            authListener.subscription.unsubscribe();
+            try {
+              authListener.subscription.unsubscribe();
+            } catch (unsubError) {
+              console.warn('Error unsubscribing from auth listener:', unsubError);
+            }
           }
           clearInterval(sessionCheckInterval);
         };
       } catch (error) {
-        console.error('Error in auth initialization:', error);
+        console.error('Fatal error in auth initialization:', error);
         setLoading(false);
       }
     };
     
     initializeAuth();
-  }, []);
+  }, [session]); // Add session as dependency to reinitialize if it changes unexpectedly
 
   // Sign up function
   const signUp = async (email: string, password: string, metadata?: any) => {
@@ -231,31 +367,9 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         console.error('Failed to verify Supabase client before signin:', checkError);
       }
       
-      // Try clearing session storage first to avoid stale session data
-      try {
-        console.log('Cleaning up potential stale auth data...');
-        for (const key of Object.keys(localStorage)) {
-          if (key.includes('sb-') || key.includes('supabase')) {
-            console.log(`Removing localStorage item: ${key}`);
-            localStorage.removeItem(key);
-          }
-        }
-      } catch (e) {
-        console.warn('Error clearing storage:', e);
-      }
-      
-      // Clear any existing sessions first to avoid conflicts
-      try {
-        console.log('Performing pre-signin cleanup...');
-        const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
-        if (signOutError) {
-          console.warn('Error during pre-signin cleanup:', signOutError);
-        } else {
-          console.log('Pre-signin cleanup completed successfully');
-        }
-      } catch (e) {
-        console.warn('Exception during pre-signin cleanup:', e);
-      }
+      // IMPORTANT: We're NOT going to clear existing session data before login
+      // This was causing issues with token persistence. Instead, we'll let Supabase handle session management.
+      console.log('Proceeding with signin without clearing existing session data');
       
       // Attempt to sign in with Supabase
       console.log('Calling supabase.auth.signInWithPassword...');

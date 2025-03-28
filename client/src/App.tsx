@@ -155,48 +155,106 @@ function MainAppRoutes() {
     
     // Handle protected routes when not authenticated - BUT only if we're sure auth is not in a transitional state
     if (!isAuthenticated && !isPublicRoute && !authLoading) {
-      // Double check with supabase directly before redirecting
-      supabase.auth.getSession().then(({ data }) => {
-        if (!data.session) {
-          console.log("Not authenticated, redirecting to login");
+      console.log("Detected unauthenticated access to protected route:", location);
+      
+      // Define a function to handle recovery attempts
+      const attemptSessionRecovery = async () => {
+        console.log("Attempting session recovery before redirecting...");
+        
+        // First, check directly with Supabase API
+        try {
+          console.log("Direct session check with Supabase");
+          const { data, error } = await supabase.auth.getSession();
           
-          // Add token detection as last resort - check localStorage and cookies
-          let foundToken = false;
-          
-          // Check localStorage for tokens
-          try {
-            const accessToken = localStorage.getItem('sb-access-token');
-            if (accessToken) {
-              console.log("Found token in localStorage, trying to use it");
-              foundToken = true;
+          if (error) {
+            console.warn("Error checking session:", error.message);
+          } else if (data.session) {
+            console.log("Session found directly in Supabase but not in context");
+            // Session exists, just missing from context - refresh page to sync
+            console.log("Refreshing page to restore session context");
+            
+            // Set a flag to prevent infinite refresh loops
+            try {
+              const lastRefresh = localStorage.getItem('sb-last-refresh');
+              const now = Date.now();
               
-              // Try to use the token to get user before redirecting
-              supabase.auth.getUser(accessToken).then(({ data: userData, error: userError }) => {
-                if (!userError && userData.user) {
-                  console.log("Valid token found, refreshing page");
-                  window.location.reload();
-                } else {
-                  navigate('/login', { replace: true });
-                }
+              if (lastRefresh && now - parseInt(lastRefresh) < 5000) {
+                console.warn("Detected potential refresh loop, redirecting to login instead");
+                localStorage.removeItem('sb-last-refresh');
+                navigate('/login', { replace: true });
+                return false;
+              }
+              
+              localStorage.setItem('sb-last-refresh', now.toString());
+              window.location.reload();
+              return true;
+            } catch (e) {
+              console.error("Error handling refresh:", e);
+            }
+            return true;
+          }
+        } catch (e) {
+          console.error("Exception during direct session check:", e);
+        }
+        
+        // Second, try retrieving and using backup tokens
+        try {
+          console.log("Checking for backup tokens in localStorage");
+          const accessToken = localStorage.getItem('sb-access-token');
+          const refreshToken = localStorage.getItem('sb-refresh-token');
+          
+          if (accessToken && refreshToken) {
+            console.log("Found tokens in localStorage, attempting recovery");
+            
+            try {
+              // Try to set session with the stored tokens
+              const { data, error } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken
               });
-              return;
+              
+              if (error) {
+                console.warn("Failed to restore session with tokens:", error.message);
+              } else if (data.session) {
+                console.log("Successfully restored session from tokens");
+                // Refresh page to update auth context
+                window.location.reload();
+                return true;
+              }
+            } catch (tokenError) {
+              console.error("Error using backup tokens:", tokenError);
+            }
+          }
+        } catch (e) {
+          console.error("Error accessing localStorage:", e);
+        }
+        
+        // If we get here, recovery failed
+        console.log("All recovery attempts failed, redirecting to login");
+        return false;
+      };
+      
+      // Execute recovery attempts and redirect if they fail
+      attemptSessionRecovery().then(recovered => {
+        if (!recovered) {
+          // Clear any potentially invalid tokens before redirecting
+          try {
+            const tokensToRemove = [
+              'sb-access-token', 'sb-refresh-token', 'sb-user-id', 
+              'sb-session-active', 'sb-auth-timestamp'
+            ];
+            
+            for (const key of tokensToRemove) {
+              localStorage.removeItem(key);
             }
           } catch (e) {
-            console.error("Error checking localStorage:", e);
+            console.warn("Error clearing tokens:", e);
           }
           
-          // If no token in localStorage, do the redirect
-          if (!foundToken) {
-            navigate('/login', { replace: true });
-          }
-        } else {
-          // Session exists but wasn't detected by the auth context
-          console.log("Session exists but not in auth context, refreshing");
-          window.location.reload();
+          navigate('/login', { replace: true });
         }
-      }).catch(err => {
-        console.error("Error checking session:", err);
       });
+      
       return;
     }
     
