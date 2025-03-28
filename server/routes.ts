@@ -31,12 +31,38 @@ import { registerListingsRoutes } from "./routes/listings";
 const SessionStore = MemoryStore(session);
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Helper function to get environment variables from multiple sources
+  function getSecureEnvVariable(key: string): string | undefined {
+    // First try direct process.env access (Replit Secrets should be here)
+    let value = process.env[key];
+    
+    // If not found and we're in a Node.js environment, try more approaches
+    if (!value && typeof process !== 'undefined') {
+      // Check if we might be in Replit and secrets need special access
+      if (process.env.REPL_ID || process.env.REPL_OWNER || process.env.REPL_SLUG) {
+        console.log(`[API Config] Checking for ${key} in Replit Secrets...`);
+        
+        // Try Replit-specific global secrets handling, if available
+        if (global && (global as any).__repl_secrets) {
+          value = (global as any).__repl_secrets[key];
+          if (value) {
+            console.log(`[API Config] Retrieved ${key} from Replit Secrets global object`);
+          }
+        }
+      }
+    }
+    
+    return value;
+  }
+
   // Add endpoint to provide Supabase credentials to the client
   app.get('/api/config', (req, res) => {
-    // Allow cross-origin for this endpoint specifically
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    // Allow cross-origin for this endpoint specifically - use origin if available
+    const requestOrigin = req.headers.origin || '*';
+    res.header('Access-Control-Allow-Origin', requestOrigin);
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
     
     // Detect if this is a preflight OPTIONS request
     if (req.method === 'OPTIONS') {
@@ -54,16 +80,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const siteUrl = origin || `${protocol}://${host}`;
     
     // Check if we're in a Replit environment
-    const isReplit = host?.includes('.repl.co') || host?.includes('.replit.dev');
+    const isReplit = host?.includes('.repl.co') || 
+                     host?.includes('.replit.dev') || 
+                     !!process.env.REPL_ID || 
+                     !!process.env.REPL_SLUG;
     
-    // Read environment variables for Supabase
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_ANON_KEY;
+    // Read environment variables for Supabase with fallbacks
+    let supabaseUrl = process.env.SUPABASE_URL;
+    let supabaseKey = process.env.SUPABASE_ANON_KEY;
+    
+    // If not found directly, try our special helper function
+    if (!supabaseUrl) {
+      console.log('[API Config] SUPABASE_URL not found directly, trying alternate methods');
+      supabaseUrl = getSecureEnvVariable('SUPABASE_URL');
+    }
+    
+    if (!supabaseKey) {
+      console.log('[API Config] SUPABASE_ANON_KEY not found directly, trying alternate methods');
+      supabaseKey = getSecureEnvVariable('SUPABASE_ANON_KEY');
+    }
+    
+    // If we still don't have values, try to find them in the environment
+    if (!supabaseUrl || !supabaseKey) {
+      // Look for any environment variables that might contain our targets
+      const envKeys = Object.keys(process.env);
+      
+      console.log('[API Config] Searching env vars for Supabase credentials...');
+      
+      // Look for any key that might be the Supabase URL
+      if (!supabaseUrl) {
+        for (const key of envKeys) {
+          const value = process.env[key] || '';
+          if (
+            !key.includes('KEY') && 
+            !key.includes('SECRET') && 
+            value.includes('supabase.co')
+          ) {
+            console.log(`[API Config] Found potential Supabase URL in ${key}`);
+            supabaseUrl = value;
+            break;
+          }
+        }
+      }
+      
+      // Look for any key that might be the Supabase key
+      if (!supabaseKey) {
+        for (const key of envKeys) {
+          const value = process.env[key] || '';
+          if (
+            (key.includes('KEY') || key.includes('TOKEN')) && 
+            value.length > 20 &&
+            value.includes('eyJ')
+          ) {
+            console.log(`[API Config] Found potential Supabase key in ${key}`);
+            supabaseKey = value;
+            break;
+          }
+        }
+      }
+    }
+    
+    // Special handling for Replit and production environments
+    if (isReplit || process.env.NODE_ENV === 'production') {
+      console.log('[API Config] Running in Replit or production environment');
+      
+      // Add more logging for Replit environment
+      if (isReplit) {
+        console.log('[API Config] Debug - Replit environment:', {
+          REPL_ID: !!process.env.REPL_ID,
+          REPL_SLUG: !!process.env.REPL_SLUG,
+          REPL_OWNER: !!process.env.REPL_OWNER,
+          host
+        });
+      }
+      
+      // Add more logging for production environment
+      if (process.env.NODE_ENV === 'production') {
+        console.log('[API Config] Debug - Production environment variables found:', 
+          Object.keys(process.env)
+            .filter(key => !key.includes('KEY') && !key.includes('SECRET') && !key.includes('TOKEN') && !key.includes('PASS'))
+            .join(', ')
+        );
+      }
+    }
     
     if (!supabaseUrl || !supabaseKey) {
-      console.warn('[API Config] Supabase credentials missing:', {
+      console.warn('[API Config] Supabase credentials missing after all attempts:', {
         hasUrl: !!supabaseUrl,
         hasKey: !!supabaseKey,
+        urlFound: supabaseUrl ? 'Yes' : 'No',
+        keyFound: supabaseKey ? 'Yes' : 'No',
         siteUrl
       });
       
@@ -72,7 +178,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: 'Missing Supabase configuration',
         details: {
           missingUrl: !supabaseUrl,
-          missingKey: !supabaseKey
+          missingKey: !supabaseKey,
+          environment: process.env.NODE_ENV || 'development',
+          isReplit,
+          timestamp: new Date().toISOString()
         }
       });
     } 
@@ -97,7 +206,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       environment: {
         isReplit,
         host: host || 'unknown',
-        protocol: protocol || 'unknown'
+        protocol: protocol || 'unknown',
+        nodeEnv: process.env.NODE_ENV || 'development'
       }
     });
   });

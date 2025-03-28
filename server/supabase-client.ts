@@ -3,35 +3,100 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 
-// Enhanced environment variable loading with fallbacks
-// Load from .env and .env.local files if they exist
-dotenv.config();
-dotenv.config({ path: '.env.local' });
+// This function handles environment variable retrieval with fallbacks
+function getSecureEnvVariable(key: string): string | undefined {
+  // First try direct process.env access (Replit Secrets should be here)
+  let value = process.env[key];
+  
+  // If not found and we're in a Node.js environment, try more approaches
+  if (!value && typeof process !== 'undefined') {
+    // Check if we might be in Replit and secrets need special access
+    if (process.env.REPL_ID || process.env.REPL_OWNER || process.env.REPL_SLUG) {
+      console.log(`Detected Replit environment, checking for ${key} in Replit Secrets...`);
+      
+      // Try Replit-specific global secrets handling, if available
+      if (global && (global as any).__repl_secrets) {
+        value = (global as any).__repl_secrets[key];
+        if (value) {
+          console.log(`Retrieved ${key} from Replit Secrets global object`);
+        }
+      }
+    }
+  }
+  
+  return value;
+}
 
-// Try to load from explicit paths where files might be located
+// Enhanced environment variable loading with better error handling
+console.log('Starting environment loading with comprehensive fallbacks...');
+
+// Initialize variables to track what was loaded
+let loadedEnvFiles = [];
+let failedEnvFiles = [];
+
+// Load base .env first
+try {
+  dotenv.config();
+  loadedEnvFiles.push('.env (root)');
+} catch (e) {
+  failedEnvFiles.push('.env (root)');
+}
+
+// Load environment-specific files with precedence
+try {
+  dotenv.config({ path: '.env.local' });
+  loadedEnvFiles.push('.env.local (root)');
+} catch (e) {
+  failedEnvFiles.push('.env.local (root)');
+}
+
+// Try to load from explicit paths where env files might be located
 const possibleEnvPaths = [
-  '.env',
-  '.env.local',
   path.resolve(process.cwd(), '.env'),
   path.resolve(process.cwd(), '.env.local'),
+  path.resolve(process.cwd(), '../.env'),
+  path.resolve(process.cwd(), '../.env.local'),
+  '/home/runner/workspace/.env',
+  '/home/runner/workspace/.env.local',
+  '/app/.env',
+  '/app/.env.local',
 ];
 
-// Load all possible env files
+// Attempt to load from all possible locations
 for (const envPath of possibleEnvPaths) {
   try {
     if (fs.existsSync(envPath)) {
       dotenv.config({ path: envPath });
-      console.log(`Loaded environment variables from ${envPath}`);
+      loadedEnvFiles.push(envPath);
+      console.log(`Successfully loaded environment variables from ${envPath}`);
     }
   } catch (e) {
-    // Ignore errors from file checks
+    failedEnvFiles.push(`${envPath} (${(e as Error).message})`);
+    // Continue to next path
   }
 }
 
-// Get credentials with more detailed logging
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+// Log which files were processed
+console.log(`Environment files loaded: ${loadedEnvFiles.join(', ') || 'none'}`);
+if (failedEnvFiles.length > 0) {
+  console.log(`Failed to load: ${failedEnvFiles.join(', ')}`);
+}
+
+// Get credentials - first try direct access, then fallback to our helper function
+let supabaseUrl = process.env.SUPABASE_URL;
+let supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 const isProduction = process.env.NODE_ENV === 'production';
+
+// If not found, try our special helper function
+if (!supabaseUrl) {
+  console.log('SUPABASE_URL not found in process.env, trying alternate methods...');
+  supabaseUrl = getSecureEnvVariable('SUPABASE_URL');
+}
+
+if (!supabaseAnonKey) {
+  console.log('SUPABASE_ANON_KEY not found in process.env, trying alternate methods...');
+  supabaseAnonKey = getSecureEnvVariable('SUPABASE_ANON_KEY');
+}
 
 // Log availability of credentials in a secure way (not showing actual values)
 console.log('Supabase server configuration status:', {
@@ -39,7 +104,9 @@ console.log('Supabase server configuration status:', {
   hasKey: !!supabaseAnonKey,
   environment: process.env.NODE_ENV || 'development',
   urlLength: supabaseUrl?.length || 0,
-  keyLength: supabaseAnonKey?.length || 0
+  keyLength: supabaseAnonKey?.length || 0,
+  isReplit: !!(process.env.REPL_ID || process.env.REPL_OWNER),
+  isProd: isProduction
 });
 
 if (!supabaseUrl || !supabaseAnonKey) {

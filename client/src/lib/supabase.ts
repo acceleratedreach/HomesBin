@@ -173,12 +173,113 @@ async function initializeSupabase() {
     }
     
     // Fallback to environment variables if server config fails
-    const envSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const envSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    // Try multiple environment variable formats
+    let envSupabaseUrl = null;
+    let envSupabaseKey = null;
     
+    // Check for Vite environment variables (VITE_*)
+    if (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      console.log('Found Vite environment variables');
+      envSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      envSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    } 
+    // Check for React environment variables (REACT_APP_*)
+    else if (import.meta.env.REACT_APP_SUPABASE_URL && import.meta.env.REACT_APP_SUPABASE_ANON_KEY) {
+      console.log('Found React environment variables');
+      envSupabaseUrl = import.meta.env.REACT_APP_SUPABASE_URL;
+      envSupabaseKey = import.meta.env.REACT_APP_SUPABASE_ANON_KEY;
+    }
+    // Check for direct environment variables without prefix
+    else if (import.meta.env.SUPABASE_URL && import.meta.env.SUPABASE_ANON_KEY) {
+      console.log('Found direct environment variables');
+      envSupabaseUrl = import.meta.env.SUPABASE_URL;
+      envSupabaseKey = import.meta.env.SUPABASE_ANON_KEY;
+    }
+    // Check for Replit-specific environment variables
+    else if (import.meta.env.REPLIT_SUPABASE_URL && import.meta.env.REPLIT_SUPABASE_ANON_KEY) {
+      console.log('Found Replit-specific environment variables');
+      envSupabaseUrl = import.meta.env.REPLIT_SUPABASE_URL;
+      envSupabaseKey = import.meta.env.REPLIT_SUPABASE_ANON_KEY;
+    }
+    
+    // Log all available environment variables for debugging (excluding values)
+    const envKeys = Object.keys(import.meta.env);
+    console.log('Available environment variables:', envKeys.filter(k => 
+      !k.includes('KEY') && !k.includes('SECRET') && !k.includes('PASSWORD')
+    ).join(', '));
+    
+    // Check for Supabase URL pattern in any environment variable
+    if (!envSupabaseUrl) {
+      for (const key of envKeys) {
+        const value = import.meta.env[key];
+        if (
+          typeof value === 'string' &&
+          !key.includes('KEY') && 
+          value.includes('supabase.co')
+        ) {
+          console.log(`Found potential Supabase URL in ${key}`);
+          envSupabaseUrl = value;
+          break;
+        }
+      }
+    }
+    
+    // Check for Supabase key pattern in any environment variable
+    if (!envSupabaseKey) {
+      for (const key of envKeys) {
+        const value = import.meta.env[key];
+        if (
+          typeof value === 'string' &&
+          (key.includes('KEY') || key.includes('TOKEN')) && 
+          value.length > 20 &&
+          value.includes('eyJ')
+        ) {
+          console.log(`Found potential Supabase key in ${key}`);
+          envSupabaseKey = value;
+          break;
+        }
+      }
+    }
+    
+    // Try localStorage as last resort (might have been set by another tab/session)
+    if (!envSupabaseUrl || !envSupabaseKey) {
+      try {
+        const storedUrl = localStorage.getItem('supabase_url');
+        const storedKey = localStorage.getItem('supabase_key');
+        
+        if (storedUrl && storedKey) {
+          console.log('Found Supabase credentials in localStorage');
+          envSupabaseUrl = storedUrl;
+          envSupabaseKey = storedKey;
+        }
+      } catch (e) {
+        console.warn('Error accessing localStorage for Supabase credentials:', e);
+      }
+    }
+    
+    // Hard-coded values from .env.local as absolute last resort
+    // These should match what's in your .env.local file
+    if (!envSupabaseUrl || !envSupabaseKey) {
+      console.warn('No environment variables found, using fallback values');
+      envSupabaseUrl = 'https://wgwlpmlfhirxbdtseure.supabase.co';
+      envSupabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnd2xwbWxmaGlyeGJkdHNldXJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc4MjYsImV4cCI6MjA1ODYxMzgyNn0.XrGQO_yiuq-UzK70vWiFSa_nUOdDKEmKwoPN8TU7_7w';
+    }
+    
+    // Final check if we have credentials after all fallbacks
     if (envSupabaseUrl && envSupabaseKey) {
       console.log('Creating Supabase client with environment variables');
+      console.log('URL Preview:', envSupabaseUrl.substring(0, 15) + '...');
+      console.log('Key Preview:', envSupabaseKey.substring(0, 5) + '...');
       
+      // Store for potential reuse in other sessions/tabs
+      try {
+        localStorage.setItem('supabase_url', envSupabaseUrl);
+        localStorage.setItem('supabase_key', envSupabaseKey);
+      } catch (e) {
+        console.warn('Failed to store Supabase credentials in localStorage:', e);
+      }
+      
+      // Create client with our comprehensive auth options
       supabase = createClient(
         envSupabaseUrl,
         envSupabaseKey,
@@ -186,16 +287,73 @@ async function initializeSupabase() {
           auth: {
             persistSession: true,
             autoRefreshToken: true,
-            detectSessionInUrl: true
+            detectSessionInUrl: true,
+            storageKey: 'supabase.auth.token',
+            flowType: 'pkce',
+            storage: {
+              getItem: (key: string) => {
+                try {
+                  // Try localStorage first
+                  let value = window.localStorage.getItem(key);
+                  if (!value) {
+                    // If not in localStorage, try sessionStorage as backup
+                    value = window.sessionStorage.getItem(key);
+                  }
+                  return value;
+                } catch (e) {
+                  console.warn(`Error getting item from storage: ${key}`, e);
+                  return null;
+                }
+              },
+              setItem: (key: string, value: string) => {
+                try {
+                  // Store in both localStorage and sessionStorage for redundancy
+                  window.localStorage.setItem(key, value);
+                  window.sessionStorage.setItem(key, value);
+                } catch (e) {
+                  console.warn(`Error setting item in storage: ${key}`, e);
+                  try {
+                    window.sessionStorage.setItem(key, value);
+                  } catch (se) {
+                    console.warn(`Error setting item in sessionStorage: ${key}`, se);
+                  }
+                }
+              },
+              removeItem: (key: string) => {
+                try {
+                  window.localStorage.removeItem(key);
+                  window.sessionStorage.removeItem(key);
+                } catch (e) {
+                  console.warn(`Error removing item from storage: ${key}`, e);
+                }
+              },
+            }
+          },
+          global: {
+            headers: {
+              'X-Client-Info': 'supabase-js-web'
+            }
           }
         }
       );
+      
+      // Try to immediately check if the client works
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        console.log('Session check with env vars:', {
+          success: !error,
+          hasSession: !!data?.session,
+          error: error ? error.message : null
+        });
+      } catch (sessionError) {
+        console.error('Error checking session after env var initialization:', sessionError);
+      }
       
       return;
     }
     
     // If all methods fail, use the mock client
-    console.error('Failed to initialize Supabase with valid credentials');
+    console.error('Failed to initialize Supabase with valid credentials after trying all fallback methods');
     supabase = createMockClient();
     
   } catch (error) {
@@ -207,57 +365,268 @@ async function initializeSupabase() {
 // Initialize immediately
 initializeSupabase();
 
-// Add a debug helper to the window object
+// Add debug helpers to the window object
 if (typeof window !== 'undefined') {
+  /**
+   * Comprehensive environment variable checker
+   * This function checks all possible environment variable sources
+   */
   // @ts-ignore - Adding to window for debugging
   window.checkSupabaseEnv = () => {
-    console.log('Checking Supabase Environment Variables:');
-    console.log('-------------------------------------');
+    console.log('📊 Supabase Environment Diagnostics');
+    console.log('==================================');
     
     try {
-      const viteSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const viteSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      console.log('VITE_SUPABASE_URL:', viteSupabaseUrl ? 
-        `Found (${viteSupabaseUrl.substring(0, 12)}...)` : 'Not found or empty');
-      console.log('VITE_SUPABASE_ANON_KEY:', viteSupabaseKey ? 
-        `Found (${viteSupabaseKey.substring(0, 5)}...)` : 'Not found or empty');
-      
-      console.log('\nCurrent Supabase Client Status:');
-      console.log('----------------------------');
-      // @ts-ignore - Accessing private property for debugging
-      const supabaseInternals = supabase.auth;
-      console.log('Auth initialized:', !!supabaseInternals);
-      
-      console.log('\nLocal Storage Auth Items:');
-      console.log('----------------------');
-      const authItems = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('supabase') || key.includes('sb-'))) {
-          const value = localStorage.getItem(key);
-          authItems.push({
-            key,
-            hasValue: !!value,
-            preview: value ? `${value.substring(0, 15)}...` : 'empty'
-          });
+      // Check all possible environment variable formats
+      const envVariables = {
+        // Vite variables
+        vite: {
+          url: import.meta.env.VITE_SUPABASE_URL,
+          key: import.meta.env.VITE_SUPABASE_ANON_KEY
+        },
+        // React variables
+        react: {
+          url: import.meta.env.REACT_APP_SUPABASE_URL,
+          key: import.meta.env.REACT_APP_SUPABASE_ANON_KEY
+        },
+        // Direct variables
+        direct: {
+          url: import.meta.env.SUPABASE_URL,
+          key: import.meta.env.SUPABASE_ANON_KEY
+        },
+        // Replit-specific variables
+        replit: {
+          url: import.meta.env.REPLIT_SUPABASE_URL,
+          key: import.meta.env.REPLIT_SUPABASE_ANON_KEY
         }
-      }
-      console.table(authItems);
+      };
       
+      // Display environment variable status
+      console.log('Environment Variables:');
+      console.log('---------------------');
+      Object.entries(envVariables).forEach(([source, vars]) => {
+        console.log(`${source.toUpperCase()}:`);
+        console.log(`  URL: ${vars.url ? `Found (${vars.url.substring(0, 12)}...)` : 'Not found'}`);
+        console.log(`  Key: ${vars.key ? `Found (${vars.key.substring(0, 5)}...)` : 'Not found'}`);
+      });
+      
+      // Check for stored credentials
+      const storedUrl = localStorage.getItem('supabase_url');
+      const storedKey = localStorage.getItem('supabase_key');
+      
+      console.log('\nStored Credentials:');
+      console.log('------------------');
+      console.log(`localStorage URL: ${storedUrl ? `Found (${storedUrl.substring(0, 12)}...)` : 'Not found'}`);
+      console.log(`localStorage Key: ${storedKey ? `Found (${storedKey.substring(0, 5)}...)` : 'Not found'}`);
+      
+      // Check client initialization
+      console.log('\nSupabase Client Status:');
+      console.log('----------------------');
+      
+      // @ts-ignore - Accessing for debugging
+      const supabaseInternals = supabase.auth;
+      const isInitialized = !!supabaseInternals;
+      console.log(`Client initialized: ${isInitialized ? '✅ Yes' : '❌ No'}`);
+      
+      // Try a test API call
+      console.log('\nSupabase Connectivity Test:');
+      console.log('-------------------------');
+      console.log('Testing connection... (see results below)');
+      
+      // Async test that will complete after this function returns
+      supabase.auth.getSession().then(({ data, error }) => {
+        console.log(`Connection test: ${!error ? '✅ Success' : '❌ Failed'}`);
+        if (error) {
+          console.error('Connection error:', error.message);
+        } else {
+          console.log(`Session exists: ${data?.session ? '✅ Yes' : '❓ No'}`);
+        }
+      });
+      
+      // Check for auth tokens in storage
+      console.log('\nAuth Token Storage:');
+      console.log('-----------------');
+      
+      // Look through localStorage
+      const localStorageTokens = scanTokensInStorage('localStorage', localStorage);
+      
+      // Look through sessionStorage
+      const sessionStorageTokens = scanTokensInStorage('sessionStorage', sessionStorage);
+      
+      // Check for cookies that might contain tokens
+      const cookieTokens = document.cookie.split(';')
+        .filter(cookie => 
+          cookie.trim().startsWith('sb-') || 
+          cookie.includes('supabase') || 
+          cookie.includes('auth')
+        ).map(cookie => {
+          const [name, value] = cookie.split('=').map(part => part.trim());
+          return { source: 'cookie', name, hasValue: !!value };
+        });
+      
+      if (cookieTokens.length > 0) {
+        console.log('Cookie auth tokens:');
+        console.table(cookieTokens);
+      } else {
+        console.log('No auth tokens found in cookies');
+      }
+      
+      // Return diagnostic summary
       return {
-        hasUrl: !!viteSupabaseUrl,
-        hasKey: !!viteSupabaseKey,
-        authInitialized: !!supabaseInternals,
-        localStorageItems: authItems.length
+        environment: {
+          vite: !!envVariables.vite.url && !!envVariables.vite.key,
+          react: !!envVariables.react.url && !!envVariables.react.key,
+          direct: !!envVariables.direct.url && !!envVariables.direct.key,
+          replit: !!envVariables.replit.url && !!envVariables.replit.key,
+        },
+        storage: {
+          localStorage: !!storedUrl && !!storedKey,
+          tokenCount: localStorageTokens.length + sessionStorageTokens.length + cookieTokens.length
+        },
+        client: {
+          initialized: isInitialized
+        },
+        timestamp: new Date().toISOString()
       };
     } catch (e: any) {
-      console.error('Error in checkSupabaseEnv:', e);
+      console.error('Error in environment diagnostics:', e);
       return { error: e.message };
     }
   };
   
-  console.log('Debug helper added - run window.checkSupabaseEnv() in console to verify Supabase environment');
+  // Helper function to scan storage for auth tokens
+  function scanTokensInStorage(storageName: string, storageObject: Storage) {
+    const tokens = [];
+    try {
+      for (let i = 0; i < storageObject.length; i++) {
+        const key = storageObject.key(i);
+        if (key && (
+          key.includes('supabase') || 
+          key.includes('sb-') || 
+          key.includes('auth')
+        )) {
+          const value = storageObject.getItem(key);
+          tokens.push({
+            source: storageName,
+            key,
+            hasValue: !!value,
+            preview: value ? `${value.substring(0, 10)}...` : 'empty'
+          });
+        }
+      }
+      
+      if (tokens.length > 0) {
+        console.log(`${storageName} auth tokens:`);
+        console.table(tokens);
+      } else {
+        console.log(`No auth tokens found in ${storageName}`);
+      }
+    } catch (e) {
+      console.error(`Error scanning ${storageName}:`, e);
+    }
+    
+    return tokens;
+  }
+  
+  /**
+   * Auth cleanup helper function
+   * This function helps clean up all Supabase-related storage
+   */
+  // @ts-ignore - Adding to window for debugging
+  window.cleanSupabaseAuth = () => {
+    console.log('🧹 Cleaning up Supabase Authentication Data');
+    console.log('=========================================');
+    
+    try {
+      // Track what we removed
+      const removed = {
+        localStorage: 0,
+        sessionStorage: 0,
+        cookies: 0
+      };
+      
+      // Clean localStorage
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key && (
+            key.includes('supabase') || 
+            key.includes('sb-') || 
+            key.includes('auth')
+          )) {
+            localStorage.removeItem(key);
+            removed.localStorage++;
+          }
+        }
+        console.log(`Cleaned ${removed.localStorage} items from localStorage`);
+      } catch (e) {
+        console.error('Error cleaning localStorage:', e);
+      }
+      
+      // Clean sessionStorage
+      try {
+        for (let i = sessionStorage.length - 1; i >= 0; i--) {
+          const key = sessionStorage.key(i);
+          if (key && (
+            key.includes('supabase') || 
+            key.includes('sb-') || 
+            key.includes('auth')
+          )) {
+            sessionStorage.removeItem(key);
+            removed.sessionStorage++;
+          }
+        }
+        console.log(`Cleaned ${removed.sessionStorage} items from sessionStorage`);
+      } catch (e) {
+        console.error('Error cleaning sessionStorage:', e);
+      }
+      
+      // Clean cookies
+      try {
+        document.cookie.split(';').forEach(cookie => {
+          const key = cookie.split('=')[0].trim();
+          if (
+            key.includes('supabase') || 
+            key.includes('sb-') || 
+            key.includes('auth')
+          ) {
+            document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
+            removed.cookies++;
+          }
+        });
+        console.log(`Cleaned ${removed.cookies} cookies`);
+      } catch (e) {
+        console.error('Error cleaning cookies:', e);
+      }
+      
+      // Force sign out
+      try {
+        supabase.auth.signOut().then(() => {
+          console.log('Signed out from Supabase');
+        }).catch(e => {
+          console.error('Error signing out:', e);
+        });
+      } catch (e) {
+        console.error('Error initiating sign out:', e);
+      }
+      
+      return {
+        success: true,
+        removed
+      };
+    } catch (e: any) {
+      console.error('Error in clean up:', e);
+      return { 
+        success: false, 
+        error: e.message 
+      };
+    }
+  };
+  
+  // Add instructions to console
+  console.log('Debug tools added to window:');
+  console.log('• window.checkSupabaseEnv() - Verify environment setup');
+  console.log('• window.cleanSupabaseAuth() - Clean up auth tokens');
 }
 
 export { supabase };
