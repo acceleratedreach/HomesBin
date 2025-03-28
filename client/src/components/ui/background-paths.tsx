@@ -51,125 +51,131 @@ function FloatingPaths({ position }: { position: number }) {
 }
 
 export function BackgroundPaths({
-    title = "Background Paths",
+    title = "",
     subtitle,
-    buttonText = "Discover Excellence",
+    buttonText = "",
     buttonLink = "#",
     onClick,
+    showContent = true,
 }: {
     title?: string;
     subtitle?: string;
     buttonText?: string;
     buttonLink?: string;
     onClick?: () => void;
+    showContent?: boolean;
 }) {
-    const words = title.split(" ");
+    const words = title ? title.split(" ") : [];
 
     return (
-        <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-white dark:bg-neutral-950">
+        <div className="relative min-h-full w-full flex items-center justify-center overflow-hidden bg-white dark:bg-neutral-950">
             <div className="absolute inset-0">
                 <FloatingPaths position={1} />
                 <FloatingPaths position={-1} />
             </div>
 
-            <div className="relative z-10 container mx-auto px-4 md:px-6 text-center">
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 2 }}
-                    className="max-w-4xl mx-auto"
-                >
-                    <h1 className="text-5xl sm:text-7xl md:text-8xl font-bold mb-8 tracking-tighter">
-                        {words.map((word, wordIndex) => (
-                            <span
-                                key={wordIndex}
-                                className="inline-block mr-4 last:mr-0"
-                            >
-                                {word.split("").map((letter, letterIndex) => (
-                                    <motion.span
-                                        key={`${wordIndex}-${letterIndex}`}
-                                        initial={{ y: 100, opacity: 0 }}
-                                        animate={{ y: 0, opacity: 1 }}
-                                        transition={{
-                                            delay:
-                                                wordIndex * 0.1 +
-                                                letterIndex * 0.03,
-                                            type: "spring",
-                                            stiffness: 150,
-                                            damping: 25,
-                                        }}
-                                        className="inline-block text-transparent bg-clip-text 
-                                        bg-gradient-to-r from-neutral-900 to-neutral-700/80 
-                                        dark:from-white dark:to-white/80"
-                                    >
-                                        {letter}
-                                    </motion.span>
-                                ))}
-                            </span>
-                        ))}
-                    </h1>
-
-                    {subtitle && (
-                        <motion.p 
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.8, duration: 0.8 }}
-                            className="text-xl md:text-2xl text-neutral-700 dark:text-neutral-300 mb-10 max-w-3xl mx-auto"
-                        >
-                            {subtitle}
-                        </motion.p>
-                    )}
-
+            {showContent && title && (
+                <div className="relative z-10 container mx-auto px-4 md:px-6 text-center">
                     <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 1.2, duration: 0.8 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 2 }}
+                        className="max-w-4xl mx-auto"
                     >
-                        <div
-                            className="inline-block group relative bg-gradient-to-b from-black/10 to-white/10 
-                            dark:from-white/10 dark:to-black/10 p-px rounded-2xl backdrop-blur-lg 
-                            overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300"
-                        >
-                            <Button
-                                variant="ghost"
-                                className="rounded-[1.15rem] px-8 py-6 text-lg font-semibold backdrop-blur-md 
-                                bg-white/95 hover:bg-white/100 dark:bg-black/95 dark:hover:bg-black/100 
-                                text-black dark:text-white transition-all duration-300 
-                                group-hover:-translate-y-0.5 border border-black/10 dark:border-white/10
-                                hover:shadow-md dark:hover:shadow-neutral-800/50"
-                                onClick={onClick}
-                                {...(buttonLink !== "#" ? { asChild: true } : {})}
+                        <h1 className="text-5xl sm:text-7xl md:text-8xl font-bold mb-8 tracking-tighter">
+                            {words.map((word, wordIndex) => (
+                                <span
+                                    key={wordIndex}
+                                    className="inline-block mr-4 last:mr-0"
+                                >
+                                    {word.split("").map((letter, letterIndex) => (
+                                        <motion.span
+                                            key={`${wordIndex}-${letterIndex}`}
+                                            initial={{ y: 100, opacity: 0 }}
+                                            animate={{ y: 0, opacity: 1 }}
+                                            transition={{
+                                                delay:
+                                                    wordIndex * 0.1 +
+                                                    letterIndex * 0.03,
+                                                type: "spring",
+                                                stiffness: 150,
+                                                damping: 25,
+                                            }}
+                                            className="inline-block text-transparent bg-clip-text 
+                                            bg-gradient-to-r from-neutral-900 to-neutral-700/80 
+                                            dark:from-white dark:to-white/80"
+                                        >
+                                            {letter}
+                                        </motion.span>
+                                    ))}
+                                </span>
+                            ))}
+                        </h1>
+
+                        {subtitle && (
+                            <motion.p 
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.8, duration: 0.8 }}
+                                className="text-xl md:text-2xl text-neutral-700 dark:text-neutral-300 mb-10 max-w-3xl mx-auto"
                             >
-                                {buttonLink !== "#" ? (
-                                    <a href={buttonLink}>
-                                        <span className="opacity-90 group-hover:opacity-100 transition-opacity">
-                                            {buttonText}
-                                        </span>
-                                        <span
-                                            className="ml-3 opacity-70 group-hover:opacity-100 group-hover:translate-x-1.5 
-                                            transition-all duration-300"
-                                        >
-                                            →
-                                        </span>
-                                    </a>
-                                ) : (
-                                    <>
-                                        <span className="opacity-90 group-hover:opacity-100 transition-opacity">
-                                            {buttonText}
-                                        </span>
-                                        <span
-                                            className="ml-3 opacity-70 group-hover:opacity-100 group-hover:translate-x-1.5 
-                                            transition-all duration-300"
-                                        >
-                                            →
-                                        </span>
-                                    </>
-                                )}
-                            </Button>
-                        </div>
+                                {subtitle}
+                            </motion.p>
+                        )}
+
+                        {buttonText && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 1.2, duration: 0.8 }}
+                            >
+                                <div
+                                    className="inline-block group relative bg-gradient-to-b from-black/10 to-white/10 
+                                    dark:from-white/10 dark:to-black/10 p-px rounded-2xl backdrop-blur-lg 
+                                    overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300"
+                                >
+                                    <Button
+                                        variant="ghost"
+                                        className="rounded-[1.15rem] px-8 py-6 text-lg font-semibold backdrop-blur-md 
+                                        bg-white/95 hover:bg-white/100 dark:bg-black/95 dark:hover:bg-black/100 
+                                        text-black dark:text-white transition-all duration-300 
+                                        group-hover:-translate-y-0.5 border border-black/10 dark:border-white/10
+                                        hover:shadow-md dark:hover:shadow-neutral-800/50"
+                                        onClick={onClick}
+                                        {...(buttonLink !== "#" ? { asChild: true } : {})}
+                                    >
+                                        {buttonLink !== "#" ? (
+                                            <a href={buttonLink}>
+                                                <span className="opacity-90 group-hover:opacity-100 transition-opacity">
+                                                    {buttonText}
+                                                </span>
+                                                <span
+                                                    className="ml-3 opacity-70 group-hover:opacity-100 group-hover:translate-x-1.5 
+                                                    transition-all duration-300"
+                                                >
+                                                    →
+                                                </span>
+                                            </a>
+                                        ) : (
+                                            <>
+                                                <span className="opacity-90 group-hover:opacity-100 transition-opacity">
+                                                    {buttonText}
+                                                </span>
+                                                <span
+                                                    className="ml-3 opacity-70 group-hover:opacity-100 group-hover:translate-x-1.5 
+                                                    transition-all duration-300"
+                                                >
+                                                    →
+                                                </span>
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </motion.div>
+                        )}
                     </motion.div>
-                </motion.div>
-            </div>
+                </div>
+            )}
         </div>
     );
 }

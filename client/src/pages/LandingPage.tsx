@@ -24,6 +24,7 @@ export default function LandingPage() {
     username: string;
     email: string;
     emailVerified?: boolean;
+    [key: string]: any; // Allow for additional properties
   }
 
   interface SessionData {
@@ -36,7 +37,7 @@ export default function LandingPage() {
   });
   
   // Check if user is authenticated but email is not verified
-  const { data: userData } = useQuery({
+  const { data: userData } = useQuery<{ emailVerified?: boolean }>({
     queryKey: ['/api/user'],
     enabled: !!sessionData?.user,
   });
@@ -58,7 +59,16 @@ export default function LandingPage() {
   }, []);
   
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col relative">
+      {/* Background Paths that fill the entire page */}
+      <div className="fixed inset-0 z-0">
+        <BackgroundPaths 
+          title=""
+          buttonText=""
+          buttonLink="#"
+        />
+      </div>
+      
       <div className="fixed top-0 left-0 right-0 z-50 bg-transparent">
         <Header isAuthenticated={isAuthenticated} />
         
@@ -75,19 +85,37 @@ export default function LandingPage() {
         )}
       </div>
       
-      {/* Hero Section with Background Paths */}
-      <div className="w-full h-screen">
-        <BackgroundPaths 
-          title="Real Estate Marketing" 
-          subtitle="Create beautiful listing pages to showcase your properties and build your real estate brand with our powerful platform."
-          buttonText={isAuthenticated ? "Go to Dashboard" : "Get Started"} 
-          buttonLink={isAuthenticated ? "/dashboard" : "/register"}
-        />
+      {/* Hero Section Content */}
+      <div className="relative z-10 h-screen w-full flex items-center justify-center">
+        <div className="text-center max-w-4xl mx-auto px-4">
+          <h1 className="text-5xl sm:text-7xl md:text-8xl font-bold mb-8 tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-neutral-900 to-neutral-700/80 dark:from-white dark:to-white/80">
+            Real Estate Marketing
+          </h1>
+          <p className="text-xl md:text-2xl text-neutral-700 dark:text-neutral-300 mb-10 max-w-3xl mx-auto">
+            Create beautiful listing pages to showcase your properties and build your real estate brand with our powerful platform.
+          </p>
+          <div className="inline-block group relative bg-gradient-to-b from-black/10 to-white/10 dark:from-white/10 dark:to-black/10 p-px rounded-2xl backdrop-blur-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <Button
+              variant="ghost"
+              asChild
+              className="rounded-[1.15rem] px-8 py-6 text-lg font-semibold backdrop-blur-md bg-white/95 hover:bg-white/100 dark:bg-black/95 dark:hover:bg-black/100 text-black dark:text-white transition-all duration-300 group-hover:-translate-y-0.5 border border-black/10 dark:border-white/10 hover:shadow-md dark:hover:shadow-neutral-800/50"
+            >
+              <Link href={isAuthenticated ? "/dashboard" : "/register"}>
+                <span className="opacity-90 group-hover:opacity-100 transition-opacity">
+                  {isAuthenticated ? "Go to Dashboard" : "Get Started"}
+                </span>
+                <span className="ml-3 opacity-70 group-hover:opacity-100 group-hover:translate-x-1.5 transition-all duration-300">
+                  →
+                </span>
+              </Link>
+            </Button>
+          </div>
+        </div>
       </div>
       
       {/* Main Content (Only shows after animation) */}
       {showContent && (
-        <div className="bg-slate-50 pt-16 pb-16">
+        <div className="relative z-10 pt-16 pb-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {/* Feature Cards */}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-16">
