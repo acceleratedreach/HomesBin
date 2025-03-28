@@ -94,7 +94,7 @@ export default function LandingPage() {
       {/* Hero Section Content */}
       <div className="relative z-10 h-screen w-full flex items-center justify-center">
         <div className="text-center max-w-4xl mx-auto px-4">
-          <h1 className="text-5xl sm:text-7xl md:text-8xl font-bold mb-8 tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-neutral-900 to-neutral-700/80 dark:from-white dark:to-white/80">
+          <h1 className="text-5xl sm:text-7xl md:text-8xl font-bold mb-8 tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-neutral-900 to-neutral-700/80 dark:from-white dark:to-white/80 whitespace-nowrap">
             Real Estate Marketing
           </h1>
           <p className="text-xl md:text-2xl text-neutral-700 dark:text-neutral-300 mb-10 max-w-3xl mx-auto">
