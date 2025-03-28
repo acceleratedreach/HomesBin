@@ -1,95 +1,110 @@
 import { Express, Request, Response, NextFunction } from 'express';
 import { supabase } from '../supabase-client';
 
-// Debugging function to get user info without throwing errors
+// Enhanced session retrieval function with CORS and environment support
 async function safeGetSession(req?: Request) {
   try {
+    // Log available authentication information
+    console.log('Auth debug - Headers:', {
+      hasAuth: !!req?.headers.authorization,
+      hasCookie: !!req?.headers.cookie,
+      origin: req?.headers.origin || 'not set',
+      referer: req?.headers.referer || 'not set'
+    });
+    
     // Check for authorization header which might contain the Supabase token
-    if (req && req.headers.authorization) {
+    if (req?.headers.authorization) {
       // Extract the token from the Bearer token
       const token = req.headers.authorization.replace('Bearer ', '');
       
       if (token) {
-        console.log('Using token from Authorization header');
+        console.log('Using Bearer token from Authorization header');
         try {
           // Use the token directly to get user
           const { data: userData, error: userError } = await supabase.auth.getUser(token);
           
           if (userError) {
-            console.log('User error with token:', userError.message);
-            // Fall back to getSession
-            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !sessionData.session) {
-              return { session: null, user: null };
-            }
-            return { 
-              session: sessionData.session,
-              user: sessionData.session.user
-            };
-          }
-          
-          // Create a virtual session object using the token
-          return { 
-            session: { 
-              user: userData.user, 
-              access_token: token,
-              refresh_token: null,
-              expires_at: null,
-              expires_in: 3600
-            } as any, 
-            user: userData.user 
-          };
-        } catch (tokenError) {
-          console.error('Error using token:', tokenError);
-        }
-      }
-    }
-    
-    // Check cookies for token
-    if (req && req.headers.cookie) {
-      const cookies = req.headers.cookie.split(';').map(c => c.trim());
-      let token = null;
-      
-      // Look for Supabase access token in cookies
-      for (const cookie of cookies) {
-        if (cookie.startsWith('sb-access-token=')) {
-          token = cookie.substring('sb-access-token='.length);
-          console.log('Found token in cookies');
-          break;
-        }
-      }
-      
-      if (token) {
-        try {
-          // Use the token directly to get user
-          const { data: userData, error: userError } = await supabase.auth.getUser(token);
-          
-          if (userError) {
-            console.log('User error with cookie token:', userError.message);
-          } else {
+            console.log('🔍 Auth debug - Token error:', userError.message);
+          } else if (userData.user) {
+            console.log('🔍 Auth success - Valid Bearer token');
+            
+            // Create a proper session object using the token
             return { 
               session: { 
                 user: userData.user, 
                 access_token: token,
-                refresh_token: null,
-                expires_at: null,
-                expires_in: 3600
-              } as any, 
+                expires_at: Date.now() + (3600 * 1000) // 1 hour from now as fallback
+              }, 
               user: userData.user 
             };
           }
         } catch (tokenError) {
-          console.error('Error using cookie token:', tokenError);
+          console.error('Error processing Bearer token:', tokenError);
         }
       }
     }
     
-    // Default to normal session check
+    // Check cookies for token if available
+    if (req?.headers.cookie) {
+      const cookies = req.headers.cookie.split(';').map(c => c.trim());
+      let accessToken = null;
+      
+      // Look for Supabase access token in cookies (various formats)
+      for (const cookie of cookies) {
+        // Handle different possible cookie names
+        if (cookie.startsWith('sb-access-token=') || 
+            cookie.startsWith('sb:token=') || 
+            cookie.startsWith('supabase-auth-token=')) {
+          
+          // Extract actual token value
+          const cookieParts = cookie.split('=');
+          if (cookieParts.length > 1) {
+            accessToken = decodeURIComponent(cookieParts[1]);
+            console.log('🔍 Auth debug - Found token in cookies');
+            break;
+          }
+        }
+      }
+      
+      if (accessToken) {
+        try {
+          const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
+          
+          if (userError) {
+            console.log('🔍 Auth debug - Cookie token error:', userError.message);
+          } else if (userData.user) {
+            console.log('🔍 Auth success - Valid cookie token');
+            
+            return { 
+              session: { 
+                user: userData.user, 
+                access_token: accessToken,
+                expires_at: Date.now() + (3600 * 1000) // 1 hour from now as fallback
+              }, 
+              user: userData.user 
+            };
+          }
+        } catch (cookieError) {
+          console.error('Error processing cookie token:', cookieError);
+        }
+      }
+    }
+    
+    // Default to normal session check as a last resort
+    console.log('🔍 Auth debug - Falling back to getSession() API call');
     const { data, error } = await supabase.auth.getSession();
+    
     if (error) {
-      console.log('Session error:', error.message);
+      console.log('🔍 Auth debug - Session error:', error.message);
       return { session: null, user: null };
     }
+    
+    if (data?.session?.user) {
+      console.log('🔍 Auth success - Session found via API');
+    } else {
+      console.log('🔍 Auth debug - No session found via API');
+    }
+    
     return { 
       session: data.session,
       user: data.session?.user || null
@@ -102,35 +117,65 @@ async function safeGetSession(req?: Request) {
 
 export function registerAuthRoutes(app: Express) {
   /**
-   * Get the current session information
+   * Get the current session information with CORS support
    */
   app.get('/api/auth/session', async (req: Request, res: Response) => {
     try {
-      console.log('Session request headers:', req.headers);
+      // Enable proper cross-domain authentication
+      const origin = req.headers.origin;
+      if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        
+        // Log allowed origin for debugging
+        console.log('🔍 Auth debug - Setting CORS headers for origin:', origin);
+      }
       
-      // Log session check attempt
-      console.log('🔍 Session endpoint called');
+      // Log authentication attempt
+      console.log('🔍 Session endpoint called from:', req.headers.referer || 'unknown');
       
-      // Check for cookies and headers that Supabase might send
-      const authHeader = req.headers.authorization;
-      const cookieHeader = req.headers.cookie;
-      
-      console.log('🔍 Cookie header:', cookieHeader ? 'present' : 'absent');
-      console.log('🔍 Auth header:', authHeader ? 'present' : 'absent');
-      
-      // Try to get the session safely, passing the request to check for the auth header
+      // Check authentication status
       const { session, user } = await safeGetSession(req);
       
       if (!session || !user) {
-        console.log('🔍 No valid session found');
-        return res.status(401).json({ message: 'Not authenticated' });
+        console.log('🔍 Auth debug - No valid session found');
+        return res.status(401).json({ 
+          message: 'Not authenticated',
+          timestamp: new Date().toISOString()
+        });
       }
       
-      console.log('🔍 User authenticated:', user.id);
-      console.log('🔍 Auth verification succeeded with method: Bearer token');
+      console.log('🔍 Auth success - User authenticated:', user.id);
       
-      // Try to fetch profile data, but don't fail if it doesn't exist
+      // Try to fetch user profile data from Supabase
       try {
+        // First check if the 'profiles' table exists
+        const { data: tableCheck, error: tableError } = await supabase
+          .from('profiles')
+          .select('*')
+          .limit(1);
+          
+        if (tableError && tableError.code === 'PGRST204') {
+          console.log('🔍 Auth debug - Profiles table does not exist');
+          // Return basic user data since we can't access profiles
+          return res.status(200).json({
+            user: {
+              id: user.id,
+              email: user.email,
+              username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
+              emailVerified: !!user.email_confirmed_at,
+              fullName: user.user_metadata?.full_name || '',
+              createdAt: user.created_at
+            },
+            session: {
+              expires_at: session.expires_at
+            }
+          });
+        }
+        
+        // Get the user profile if the table exists
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
@@ -138,21 +183,65 @@ export function registerAuthRoutes(app: Express) {
           .single();
         
         if (profileError) {
-          console.log('🔍 Profile error:', profileError.message);
+          console.log('🔍 Auth debug - Profile not found:', profileError.message);
           
-          // If profile doesn't exist, return basic user data
+          // If profile doesn't exist yet, attempt to create it
+          if (profileError.code === 'PGRST116') {
+            try {
+              // Create a basic profile for the user
+              const { data: newProfile, error: insertError } = await supabase
+                .from('profiles')
+                .insert({
+                  id: user.id,
+                  username: user.user_metadata?.username || user.email?.split('@')[0] || `user_${Date.now()}`,
+                  full_name: user.user_metadata?.full_name || '',
+                  email: user.email
+                })
+                .select()
+                .single();
+                
+              if (insertError) {
+                console.log('🔍 Auth debug - Failed to create profile:', insertError.message);
+              } else {
+                console.log('🔍 Auth success - Created new profile for user');
+                
+                // Return the newly created profile data
+                return res.status(200).json({
+                  user: {
+                    id: user.id,
+                    email: user.email,
+                    username: newProfile.username || user.user_metadata?.username || user.email?.split('@')[0],
+                    emailVerified: !!user.email_confirmed_at,
+                    fullName: newProfile.full_name || user.user_metadata?.full_name || '',
+                    createdAt: user.created_at
+                  },
+                  session: {
+                    expires_at: session.expires_at
+                  }
+                });
+              }
+            } catch (createError) {
+              console.error('Error creating profile:', createError);
+            }
+          }
+          
+          // Return basic user data if profile access failed
           return res.status(200).json({
             user: {
               id: user.id,
               email: user.email,
-              username: user.user_metadata?.username || user.email?.split('@')[0],
+              username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
               emailVerified: !!user.email_confirmed_at,
               fullName: user.user_metadata?.full_name || '',
+              createdAt: user.created_at
+            },
+            session: {
+              expires_at: session.expires_at
             }
           });
         }
         
-        console.log('🔍 Profile data found for user');
+        console.log('🔍 Auth success - Profile data retrieved');
         
         // Return user data with profile info
         return res.status(200).json({
@@ -162,27 +251,37 @@ export function registerAuthRoutes(app: Express) {
             username: profileData?.username || user.user_metadata?.username || user.email?.split('@')[0],
             emailVerified: !!user.email_confirmed_at,
             fullName: profileData?.full_name || user.user_metadata?.full_name || '',
+            createdAt: user.created_at,
+            profileId: profileData?.id
+          },
+          session: {
+            expires_at: session.expires_at
           }
         });
-      } catch (error) {
-        console.log('🔍 Error accessing profile data, returning basic user info');
+      } catch (profileAccessError) {
+        console.log('🔍 Auth debug - Error accessing profile data:', profileAccessError);
         
-        // Return basic user data if profile fetch fails
+        // Return basic user data if anything fails
         return res.status(200).json({
           user: {
             id: user.id,
             email: user.email,
-            username: user.user_metadata?.username || user.email?.split('@')[0],
+            username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
             emailVerified: !!user.email_confirmed_at,
             fullName: user.user_metadata?.full_name || '',
+            createdAt: user.created_at
+          },
+          session: {
+            expires_at: session.expires_at
           }
         });
       }
     } catch (error: any) {
-      console.error('Error checking session:', error);
+      console.error('Session endpoint error:', error);
       res.status(500).json({
         message: 'Server error',
-        error: error.message
+        error: error.message,
+        timestamp: new Date().toISOString()
       });
     }
   });
@@ -287,40 +386,60 @@ export function registerAuthRoutes(app: Express) {
   });
 }
 
-// Middleware to check if user is authenticated with Supabase
+// Enhanced middleware for Supabase authentication with CORS support
 export const supabaseAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // First try to get user from the Authorization header
-    const authHeader = req.headers.authorization;
-    let user = null;
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    // Handle CORS for cross-domain requests
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       
-      // Get the user from the token
-      const { data, error } = await supabase.auth.getUser(token);
-      if (!error && data.user) {
-        user = data.user;
+      // Handle preflight requests
+      if (req.method === 'OPTIONS') {
+        return res.status(204).end();
       }
     }
     
-    // If no user from token, fall back to session
-    if (!user) {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (!sessionError && sessionData.session) {
-        user = sessionData.session.user;
-      }
-    }
+    // Use safeGetSession to handle all auth methods
+    const { user } = await safeGetSession(req);
     
     if (!user) {
-      return res.status(401).json({ message: 'Not authenticated' });
+      console.log('🔍 Auth middleware - Authentication failed');
+      return res.status(401).json({ 
+        message: 'Not authenticated',
+        timestamp: new Date().toISOString()
+      });
     }
     
-    // Attach user data to request
-    (req as any).user = user;
+    console.log('🔍 Auth middleware - User authenticated:', user.id);
+    
+    // Enhance user object with additional information
+    const enhancedUser = {
+      ...user,
+      // Add helpful properties
+      isAuthenticated: true,
+      authMethod: req.headers.authorization ? 'token' : 'session',
+      // Add timestamps
+      authTimestamp: Date.now(),
+      // Safe access to common properties
+      email: user.email || '',
+      emailVerified: !!user.email_confirmed_at,
+      username: user.user_metadata?.username || user.email?.split('@')[0] || 'user'
+    };
+    
+    // Attach enhanced user data to request for route handlers
+    (req as any).user = enhancedUser;
+    
+    // Continue to the requested route
     return next();
   } catch (error) {
     console.error('Authentication middleware error:', error);
-    return res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ 
+      message: 'Server authentication error',
+      timestamp: new Date().toISOString()
+    });
   }
 };

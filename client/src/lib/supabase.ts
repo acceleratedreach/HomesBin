@@ -39,144 +39,116 @@ async function initializeSupabase() {
   try {
     console.log('Initializing Supabase client...');
     
-    // Get environment variables directly for client-side usage
-    const envSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const envSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    // Log the environment variables for debugging
-    console.log('ENV variables check:', {
-      hasUrl: !!envSupabaseUrl,
-      hasKey: !!envSupabaseKey,
-      url: envSupabaseUrl ? `${envSupabaseUrl.substring(0, 12)}...` : 'missing',
-    });
-    
-    // If variables are missing or empty, try other methods
-    if (!envSupabaseUrl || !envSupabaseKey) {
-      console.warn('Missing or empty Supabase environment variables - will try fallbacks');
-    }
-    
-    // Improved auth options for better session persistence
-    const authOptions = {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storageKey: 'supabase.auth.token',
-      storage: {
-        getItem: (key: string) => {
-          try {
-            // Try localStorage first
-            let value = window.localStorage.getItem(key);
-            if (!value) {
-              // If not in localStorage, try sessionStorage as backup
-              value = window.sessionStorage.getItem(key);
-            }
-            console.log(`Storage get [${key.substring(0, 10)}...]: ${value ? 'exists' : 'null'}`);
-            return value;
-          } catch (e) {
-            console.warn(`Error getting item from storage: ${key}`, e);
-            return null;
-          }
-        },
-        setItem: (key: string, value: string) => {
-          try {
-            console.log(`Storage set [${key.substring(0, 10)}...]: ${value ? 'value exists' : 'null'}`);
-            // Store in both localStorage and sessionStorage for redundancy
-            window.localStorage.setItem(key, value);
-            window.sessionStorage.setItem(key, value);
-            
-            // For critical auth tokens, also set as cookies as a fallback
-            if (key.includes('access_token') || key.includes('refresh_token')) {
-              try {
-                const oneWeek = 60 * 60 * 24 * 7;
-                document.cookie = `sb-fallback-${key}=${encodeURIComponent(value)};max-age=${oneWeek};path=/;SameSite=Lax`;
-              } catch (cookieError) {
-                console.warn('Error setting cookie:', cookieError);
-              }
-            }
-          } catch (e) {
-            console.warn(`Error setting item in storage: ${key}`, e);
-            // If localStorage fails, try sessionStorage
-            try {
-              window.sessionStorage.setItem(key, value);
-            } catch (se) {
-              console.warn(`Error setting item in sessionStorage: ${key}`, se);
-            }
-          }
-        },
-        removeItem: (key: string) => {
-          try {
-            console.log(`Storage remove [${key.substring(0, 10)}...]`);
-            window.localStorage.removeItem(key);
-            window.sessionStorage.removeItem(key);
-            
-            // Also remove any fallback cookies
-            if (key.includes('access_token') || key.includes('refresh_token')) {
-              document.cookie = `sb-fallback-${key}=;max-age=0;path=/;`;
-            }
-          } catch (e) {
-            console.warn(`Error removing item from storage: ${key}`, e);
-          }
-        },
-      },
-      // Use Lax for better compatibility, Strict can cause issues with auth redirects
-      cookieOptions: {
-        name: 'sb-auth-token',
-        lifetime: 60 * 60 * 24 * 7, // 7 days
-        domain: window.location.hostname,
-        path: '/',
-        sameSite: 'Lax',
-        secure: window.location.protocol === 'https:',
-      }
-    };
-    
-    // Priority 1: Use environment variables if available (preferred for production)
-    if (envSupabaseUrl && envSupabaseKey) {
-      console.log('Creating Supabase client from environment variables');
-      try {
-        supabase = createClient(envSupabaseUrl, envSupabaseKey, { auth: authOptions });
-        
-        // Try to immediately get the session to verify setup
-        const sessionResult = await supabase.auth.getSession();
-        if (!sessionResult || !sessionResult.data) {
-          console.warn('getSession() returned null response');
-        } else {
-          console.log('Initial auth check:', { 
-            sessionExists: !!sessionResult.data.session,
-            userExists: !!sessionResult.data.session?.user,
-            error: sessionResult.error ? sessionResult.error.message : null
-          });
-          
-          if (sessionResult.data.session) {
-            console.log('Session found during initialization');
-          } else {
-            console.log('No session found during initialization');
-          }
-        }
-        
-        return;
-      } catch (clientError) {
-        console.error('Error creating Supabase client with env vars:', clientError);
-        // Will try other methods
-      }
-    }
-    
-    // Priority 2: Try to fetch from API
+    // Get configuration from the server - this is the most reliable method
     try {
-      console.log('Attempting to fetch Supabase config from server API...');
+      console.log('Fetching Supabase config from server API...');
       const response = await fetch('/api/config');
+      
       if (response.ok) {
         const config = await response.json();
+        
         if (config?.supabase?.url && config?.supabase?.key) {
-          console.log('Found Supabase config from server API');
-          supabase = createClient(config.supabase.url, config.supabase.key, { auth: authOptions });
+          console.log('Supabase configuration loaded from server API');
+          
+          // Set the site URL for Supabase
+          console.log('Setting Supabase site URL to:', window.location.origin);
+          
+          // Create the client with server-provided credentials
+          supabase = createClient(
+            config.supabase.url,
+            config.supabase.key,
+            {
+              auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true,
+                storageKey: 'supabase.auth.token',
+                flowType: 'pkce',
+                storage: {
+                  getItem: (key: string) => {
+                    try {
+                      // Try localStorage first
+                      let value = window.localStorage.getItem(key);
+                      if (!value) {
+                        // If not in localStorage, try sessionStorage as backup
+                        value = window.sessionStorage.getItem(key);
+                      }
+                      console.log(`Storage get [${key.substring(0, 10)}...]: ${value ? 'exists' : 'null'}`);
+                      return value;
+                    } catch (e) {
+                      console.warn(`Error getting item from storage: ${key}`, e);
+                      return null;
+                    }
+                  },
+                  setItem: (key: string, value: string) => {
+                    try {
+                      console.log(`Storage set [${key.substring(0, 10)}...]: ${value ? 'value exists' : 'null'}`);
+                      // Store in both localStorage and sessionStorage for redundancy
+                      window.localStorage.setItem(key, value);
+                      window.sessionStorage.setItem(key, value);
+                    } catch (e) {
+                      console.warn(`Error setting item in storage: ${key}`, e);
+                      try {
+                        window.sessionStorage.setItem(key, value);
+                      } catch (se) {
+                        console.warn(`Error setting item in sessionStorage: ${key}`, se);
+                      }
+                    }
+                  },
+                  removeItem: (key: string) => {
+                    try {
+                      console.log(`Storage remove [${key.substring(0, 10)}...]`);
+                      window.localStorage.removeItem(key);
+                      window.sessionStorage.removeItem(key);
+                    } catch (e) {
+                      console.warn(`Error removing item from storage: ${key}`, e);
+                    }
+                  },
+                },
+              },
+              global: {
+                headers: {
+                  'X-Client-Info': 'supabase-js-web'
+                }
+              }
+            }
+          );
+          
+          console.log('Supabase client initialized successfully with API config');
           return;
+        } else {
+          console.error('Server returned config but missing Supabase URL or key');
         }
+      } else {
+        console.error('Failed to fetch Supabase config from server:', response.status);
       }
     } catch (apiError) {
       console.error('Error fetching config from API:', apiError);
     }
     
-    // If we reach here, we couldn't initialize properly
+    // Fallback to environment variables if server config fails
+    const envSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const envSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (envSupabaseUrl && envSupabaseKey) {
+      console.log('Creating Supabase client with environment variables');
+      
+      supabase = createClient(
+        envSupabaseUrl,
+        envSupabaseKey,
+        {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true
+          }
+        }
+      );
+      
+      return;
+    }
+    
+    // If all methods fail, use the mock client
     console.error('Failed to initialize Supabase with valid credentials');
     supabase = createMockClient();
     

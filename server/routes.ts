@@ -33,17 +33,33 @@ const SessionStore = MemoryStore(session);
 export async function registerRoutes(app: Express): Promise<Server> {
   // Add endpoint to provide Supabase credentials to the client
   app.get('/api/config', (req, res) => {
-    // Determine the site URL
+    // Determine the site URL from headers for proper redirects
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.get('host');
     const siteUrl = `${protocol}://${host}`;
+    
+    // Validate environment variables and log helpful debug info
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn('[API Config] Supabase credentials missing:', {
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseKey,
+        siteUrl
+      });
+    } else {
+      console.log('[API Config] Providing Supabase config with valid credentials');
+    }
 
     res.json({
       supabase: {
-        url: process.env.SUPABASE_URL || '',
-        key: process.env.SUPABASE_ANON_KEY || '',
+        url: supabaseUrl || '',
+        key: supabaseKey || '',
         siteUrl: siteUrl
-      }
+      },
+      production: process.env.NODE_ENV === 'production',
+      timestamp: new Date().toISOString()
     });
   });
   // Session setup
