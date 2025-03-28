@@ -12,7 +12,7 @@ export function ThemeToggle() {
       size="icon"
       onClick={toggleTheme}
       aria-label="Toggle theme"
-      className="rounded-full w-9 h-9 bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 hover:text-white"
+      className="rounded-full w-9 h-9 border dark:border-gray-700 dark:text-gray-300 text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
     >
       {theme === 'light' ? (
         <Moon className="h-5 w-5" />
