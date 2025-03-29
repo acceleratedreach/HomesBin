@@ -368,6 +368,46 @@ initializeSupabase();
 // Add debug helpers to the window object
 if (typeof window !== 'undefined') {
   /**
+   * Check Supabase client capabilities and version
+   */
+  // @ts-ignore - Adding to window for debugging
+  window.checkSupabaseMethods = () => {
+    console.log('📋 Supabase Client API Methods Check');
+    console.log('==================================');
+    
+    try {
+      // Check all API methods available on the auth object
+      const authMethods = Object.getOwnPropertyNames(supabase.auth).filter(
+        name => typeof supabase.auth[name] === 'function'
+      );
+      
+      console.log('Available Auth Methods:', authMethods.sort().join(', '));
+      console.log('Has setSession:', authMethods.includes('setSession'));
+      console.log('Has refreshSession:', authMethods.includes('refreshSession'));
+      
+      // Try to detect version from available methods
+      const version = 
+        authMethods.includes('setSession') && !authMethods.includes('refreshSession') 
+          ? 'v2.x (latest)' 
+          : authMethods.includes('refreshSession') 
+            ? 'v2.5.0+' 
+            : 'v2.0-v2.4.x';
+            
+      console.log('Detected Supabase version:', version);
+      
+      return {
+        authMethods,
+        hasSetSession: authMethods.includes('setSession'),
+        hasRefreshSession: authMethods.includes('refreshSession'),
+        detectedVersion: version
+      };
+    } catch (e) {
+      console.error('Error checking Supabase methods:', e);
+      return { error: e };
+    }
+  };
+  
+  /**
    * Comprehensive environment variable checker
    * This function checks all possible environment variable sources
    */

@@ -94,6 +94,14 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           if (backupTokens) {
             try {
               console.log('Attempting session recovery with backup tokens...');
+              
+              // Log available auth methods to help diagnose issues
+              const authMethods = Object.getOwnPropertyNames(supabase.auth)
+                .filter(name => typeof supabase.auth[name] === 'function');
+              console.log('Available Supabase auth methods:', authMethods.join(', '));
+              console.log('Has refreshSession:', authMethods.includes('refreshSession'));
+              console.log('Has setSession:', authMethods.includes('setSession'));
+              
               // Check which session recovery method is available in this Supabase version
               if (typeof supabase.auth.refreshSession === 'function') {
                 try {
