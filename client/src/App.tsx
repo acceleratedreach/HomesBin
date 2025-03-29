@@ -212,7 +212,7 @@ function MainAppRoutes() {
               let refreshData = null;
               let refreshError = null;
                 
-              // Check if refreshSession is available in this version
+              // Check which session recovery method is available
               if (typeof supabase.auth.refreshSession === 'function') {
                 console.log('Using refreshSession to recover user session...');
                 try {
@@ -229,8 +229,25 @@ function MainAppRoutes() {
                 } catch (e) {
                   console.error('Exception in refreshSession call:', e);
                 }
+              } else if (typeof supabase.auth.setSession === 'function') {
+                console.log('Using setSession to recover user session...');
+                try {
+                  const setSessionResult = await supabase.auth.setSession({
+                    access_token: accessToken,
+                    refresh_token: refreshToken
+                  });
+                  
+                  refreshData = setSessionResult.data;
+                  refreshError = setSessionResult.error;
+                  
+                  if (refreshError) {
+                    console.error('Error in setSession recovery:', refreshError);
+                  }
+                } catch (e) {
+                  console.error('Exception in setSession call:', e);
+                }
               } else {
-                console.warn('refreshSession not available in MainAppRoutes - unable to recover session');
+                console.warn('Neither refreshSession nor setSession available in MainAppRoutes - unable to recover session');
               }
               
               // Use the result of the refresh attempt
