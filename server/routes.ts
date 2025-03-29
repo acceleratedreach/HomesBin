@@ -186,7 +186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } 
     
-    // Success case - all config present
+    // Success case - all config present but don't log actual values
     console.log('[API Config] Providing Supabase config with valid credentials', {
       urlLength: supabaseUrl.length,
       keyLength: supabaseKey.length,
@@ -195,6 +195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
 
     // Enhanced response with more context and debugging info
+    // But do NOT return actual credentials in logs
     res.json({
       supabase: {
         url: supabaseUrl,

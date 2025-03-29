@@ -11,6 +11,8 @@ interface Subscription {
 }
 
 // Update the AuthListener type to match what supabase.auth.onAuthStateChange returns in v2.49.3
+// This interface includes both the structure returned by onAuthStateChange 
+// and our own additional properties to handle type safety in cleanup code
 interface AuthListener {
   data: {
     subscription: Subscription;
@@ -180,7 +182,9 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           
           // In v2.49.3, we need to get the subscription from the data property
           authListener = {
-            subscription: listenerResult.data.subscription
+            data: {
+              subscription: listenerResult.data.subscription
+            }
           };
         } catch (listenerError) {
           console.error('Failed to set up auth state change listener:', listenerError);
@@ -246,8 +250,8 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           if (authListener) {
             console.log('Cleaning up auth listener');
             try {
-              // In v2.49.3, we need to unsubscribe via the subscription property
-              authListener.subscription.unsubscribe();
+              // In v2.49.3, we need to unsubscribe via the data.subscription property
+              authListener.data.subscription.unsubscribe();
             } catch (unsubError) {
               console.warn('Error unsubscribing from auth listener:', unsubError);
             }
