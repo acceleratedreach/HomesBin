@@ -15,8 +15,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { useSupabaseAuth } from "@/context/SupabaseAuthContextNew";
-import { supabase } from "@/lib/supabase-new";
+import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
+import { supabase } from "@/lib/supabase";
 
 // Define the user data interface
 interface UserData {
@@ -46,7 +46,7 @@ export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { signIn, user } = useSupabaseAuth();
+  const { signIn, user, setSession, setUser } = useSupabaseAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -121,16 +121,20 @@ export default function LoginForm() {
         console.log('Sign in function completed successfully');
         
         // Success case - we have both session and user
-        console.log('Sign in successful, session established');
+        const { session, user } = signInResult.data;
+        console.log('Sign in successful, session established for user:', user.id.substring(0, 8) + '...');
         
         // If we got here, authentication was successful
+        setSession(session);
+        setUser(user);
         
         // Double-check that session was actually set
         setTimeout(async () => {
           try {
             const checkResult = await supabase.auth.getSession();
             console.log('Session check after login:', { 
-              hasSession: !!checkResult?.data?.session
+              hasSession: !!checkResult?.data?.session,
+              inContext: !!session
             });
             
             // Explicitly extract and store token in localStorage for API requests
@@ -152,14 +156,16 @@ export default function LoginForm() {
           }
         }, 100);
         
-        // Save the session timestamp to localStorage
+        // Save the session explicitly to localStorage as a backup
         try {
+          localStorage.setItem('sb-user-id', user.id);
           localStorage.setItem('sb-session-active', 'true');
           localStorage.setItem('sb-provider', 'email');
           // Store a timestamp to detect stale sessions
           localStorage.setItem('sb-auth-timestamp', Date.now().toString());
           
           // Also store in sessionStorage for redundancy
+          sessionStorage.setItem('sb-user-id', user.id);
           sessionStorage.setItem('sb-session-active', 'true');
         } catch (storageError) {
           console.warn('Could not save to localStorage:', storageError);
@@ -177,9 +183,12 @@ export default function LoginForm() {
         // Don't redirect; reload the page to ensure a fresh state
         console.log('Reloading page to ensure fresh session state...');
         
-        // Reload the page to ensure the auth context is properly updated
-        window.location.href = '/';
-        return;
+        // Construct the redirection URL with the username
+        const username = user.user_metadata?.username || user.email?.split('@')[0] || 'dashboard';
+        const redirectUrl = `/${username}/dashboard`;
+        
+        // Use window.location for a full page refresh with the proper URL
+        window.location.href = redirectUrl;
       } catch (signInError: any) {
         console.error('Login error during sign in:', signInError);
         toast({

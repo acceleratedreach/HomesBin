@@ -10,9 +10,6 @@ interface Subscription {
   unsubscribe: () => void;
 }
 
-// Update the AuthListener type to match what supabase.auth.onAuthStateChange returns in v2.49.3
-// This interface includes both the structure returned by onAuthStateChange 
-// and our own additional properties to handle type safety in cleanup code
 interface AuthListener {
   data: {
     subscription: Subscription;
@@ -94,70 +91,13 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           if (backupTokens) {
             try {
               console.log('Attempting session recovery with backup tokens...');
+              const recoveryResult = await supabase.auth.setSession(backupTokens);
               
-              // Log available auth methods to help diagnose issues
-              const authMethods = Object.getOwnPropertyNames(supabase.auth)
-                .filter(name => typeof supabase.auth[name] === 'function');
-              console.log('Available Supabase auth methods:', authMethods.join(', '));
-              console.log('Has refreshSession:', authMethods.includes('refreshSession'));
-              console.log('Has setSession:', authMethods.includes('setSession'));
-              
-              // Check which session recovery method is available in this Supabase version
-              if (typeof supabase.auth.refreshSession === 'function') {
-                try {
-                  const recoveryResult = await supabase.auth.refreshSession({
-                    refresh_token: backupTokens.refresh_token
-                  });
-                  
-                  if (recoveryResult.error) {
-                    console.error('Failed to recover session with backup tokens:', recoveryResult.error);
-                  } else if (recoveryResult.data?.session) {
-                    console.log('Successfully recovered session from backup tokens');
-                    sessionResult = recoveryResult;
-                  }
-                } catch (refreshError) {
-                  console.error('Error using refreshSession:', refreshError);
-                }
-              } else if (typeof supabase.auth.setSession === 'function') {
-                // Try setSession as an alternative to refreshSession
-                try {
-                  console.log('Using setSession for token recovery...');
-                  const recoveryResult = await supabase.auth.setSession({
-                    access_token: backupTokens.access_token,
-                    refresh_token: backupTokens.refresh_token
-                  });
-                  
-                  if (recoveryResult.error) {
-                    console.error('Failed to recover session with setSession:', recoveryResult.error);
-                  } else if (recoveryResult.data?.session) {
-                    console.log('Successfully recovered session using setSession');
-                    sessionResult = recoveryResult;
-                  }
-                } catch (setSessionError) {
-                  console.error('Error using setSession:', setSessionError);
-                }
-              } else {
-                console.warn('Neither refreshSession nor setSession available in this Supabase client version');
-                // Try a different approach - signIn with stored credentials if available
-                const email = localStorage.getItem('supabase_email');
-                const password = localStorage.getItem('supabase_password');
-                
-                if (email && password) {
-                  try {
-                    console.log('Attempting to sign in with stored credentials');
-                    const signInResult = await supabase.auth.signInWithPassword({
-                      email,
-                      password
-                    });
-                    
-                    if (!signInResult.error && signInResult.data?.session) {
-                      console.log('Successfully signed in with stored credentials');
-                      sessionResult = signInResult;
-                    }
-                  } catch (signInError) {
-                    console.error('Error signing in with stored credentials:', signInError);
-                  }
-                }
+              if (recoveryResult.error) {
+                console.error('Failed to recover session with backup tokens:', recoveryResult.error);
+              } else if (recoveryResult.data?.session) {
+                console.log('Successfully recovered session from backup tokens');
+                sessionResult = recoveryResult;
               }
             } catch (recoveryError) {
               console.error('Error during session recovery attempt:', recoveryError);
@@ -234,12 +174,7 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
             }
           });
           
-          // In v2.49.3, we need to get the subscription from the data property
-          authListener = {
-            data: {
-              subscription: listenerResult.data.subscription
-            }
-          };
+          authListener = listenerResult.data;
         } catch (listenerError) {
           console.error('Failed to set up auth state change listener:', listenerError);
         }
@@ -271,62 +206,16 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 
                 if (backupAccess && backupRefresh) {
                   console.log('Attempting recovery during session check...');
-                  // Check which session recovery method is available
-                  if (typeof supabase.auth.refreshSession === 'function') {
-                    try {
-                      const recoveryResult = await supabase.auth.refreshSession({
-                        refresh_token: backupRefresh
-                      });
-                      
-                      if (!recoveryResult.error && recoveryResult.data.session) {
-                        console.log('Successfully recovered session during check');
-                        setSession(recoveryResult.data.session);
-                        setUser(recoveryResult.data.session.user);
-                        return;
-                      }
-                    } catch (refreshError) {
-                      console.error('Error using refreshSession during check:', refreshError);
-                    }
-                  } else if (typeof supabase.auth.setSession === 'function') {
-                    try {
-                      console.log('Using setSession for recovery during check...');
-                      const recoveryResult = await supabase.auth.setSession({
-                        access_token: backupAccess,
-                        refresh_token: backupRefresh
-                      });
-                      
-                      if (!recoveryResult.error && recoveryResult.data.session) {
-                        console.log('Successfully recovered session using setSession during check');
-                        setSession(recoveryResult.data.session);
-                        setUser(recoveryResult.data.session.user);
-                        return;
-                      }
-                    } catch (setSessionError) {
-                      console.error('Error using setSession during check:', setSessionError);
-                    }
-                  } else {
-                    console.warn('Neither refreshSession nor setSession available - trying alternative session recovery');
-                    // Try to sign in with stored credentials if available
-                    const email = localStorage.getItem('supabase_email');
-                    const password = localStorage.getItem('supabase_password');
-                    
-                    if (email && password) {
-                      try {
-                        const signInResult = await supabase.auth.signInWithPassword({
-                          email,
-                          password
-                        });
-                        
-                        if (!signInResult.error && signInResult.data.session) {
-                          console.log('Successfully signed in with stored credentials during check');
-                          setSession(signInResult.data.session);
-                          setUser(signInResult.data.session.user);
-                          return;
-                        }
-                      } catch (signInError) {
-                        console.error('Error signing in during check:', signInError);
-                      }
-                    }
+                  const recoveryResult = await supabase.auth.setSession({
+                    access_token: backupAccess,
+                    refresh_token: backupRefresh
+                  });
+                  
+                  if (!recoveryResult.error && recoveryResult.data.session) {
+                    console.log('Successfully recovered session during check');
+                    setSession(recoveryResult.data.session);
+                    setUser(recoveryResult.data.session.user);
+                    return;
                   }
                 }
               } catch (recoveryError) {
@@ -347,11 +236,10 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
         // Step 8: Cleanup function
         return () => {
-          if (authListener) {
+          if (authListener && authListener.subscription) {
             console.log('Cleaning up auth listener');
             try {
-              // In v2.49.3, we need to unsubscribe via the data.subscription property
-              authListener.data.subscription.unsubscribe();
+              authListener.subscription.unsubscribe();
             } catch (unsubError) {
               console.warn('Error unsubscribing from auth listener:', unsubError);
             }
@@ -559,34 +447,14 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       // Ensure the auth event is triggered and session is persisted
       try {
-        // Check which session persistence method is available in this version of Supabase
-        if (typeof supabase.auth.refreshSession === 'function') {
-          // Force the session to be persisted by the auth client
-          console.log('Using refreshSession to persist session...');
-          await supabase.auth.refreshSession({
-            refresh_token: session.refresh_token
-          });
-          console.log('Session explicitly refreshed via refreshSession API');
-        } else if (typeof supabase.auth.setSession === 'function') {
-          // Use setSession as an alternative to refreshSession
-          console.log('Using setSession to persist session...');
-          await supabase.auth.setSession({
-            access_token: session.access_token,
-            refresh_token: session.refresh_token
-          });
-          console.log('Session explicitly set via setSession API');
-        } else {
-          console.warn('Neither refreshSession nor setSession available - saving session data to localStorage');
-          // Store credentials in localStorage as a backup authentication method
-          try {
-            localStorage.setItem('supabase_email', email);
-            localStorage.setItem('supabase_password', password);
-          } catch (storageError) {
-            console.warn('Failed to store credentials in localStorage:', storageError);
-          }
-        }
+        // Force the session to be persisted by the auth client
+        await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token
+        });
+        console.log('Session explicitly set via setSession API');
       } catch (sessionSetError) {
-        console.error('Failed to explicitly refresh the session:', sessionSetError);
+        console.error('Failed to explicitly set the session:', sessionSetError);
       }
       
       // Double-check that session was actually set
@@ -601,27 +469,15 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           if (!checkResult?.data?.session) {
             console.warn('Session verification failed - session not persisted properly');
             
-            // Try one more time to refresh it if the method exists
+            // Try one more time to set it
             try {
-              if (typeof supabase.auth.refreshSession === 'function') {
-                console.log('Making second attempt to refresh session using refreshSession...');
-                await supabase.auth.refreshSession({
-                  refresh_token: session.refresh_token
-                });
-                console.log('Second attempt at refreshing session completed');
-              } else if (typeof supabase.auth.setSession === 'function') {
-                console.log('Making second attempt using setSession instead...');
-                await supabase.auth.setSession({
-                  access_token: session.access_token,
-                  refresh_token: session.refresh_token
-                });
-                console.log('Second attempt at setting session completed');
-              } else {
-                console.warn('Neither refreshSession nor setSession available for second persistence attempt');
-                // Additional fallback here - local storage is already handled above
-              }
+              await supabase.auth.setSession({
+                access_token: session.access_token,
+                refresh_token: session.refresh_token
+              });
+              console.log('Second attempt at setting session completed');
             } catch (secondSetError) {
-              console.error('Second attempt to refresh session failed:', secondSetError);
+              console.error('Second attempt to set session failed:', secondSetError);
             }
           }
         } catch (e) {
@@ -736,12 +592,17 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         console.error('Exception during primary signout:', primarySignOutError);
       }
       
-      // Approach 2: Let's skip manual session clearing since setSession isn't available
+      // Approach 2: Clear session manually via API
       try {
-        console.log('Approach 2: Skipping explicit session clearing (not supported in this version)');
-        // We'll rely on signOut() and storage cleanup instead
+        console.log('Approach 2: Explicit session clearing');
+        // This explicitly clears the current session
+        await supabase.auth.setSession({
+          access_token: '',
+          refresh_token: ''
+        });
+        console.log('Explicit session clearing completed');
       } catch (sessionClearError) {
-        console.warn('Error during session handling:', sessionClearError);
+        console.warn('Error during explicit session clearing:', sessionClearError);
       }
       
       // Approach 3: Clear all auth data from local storage

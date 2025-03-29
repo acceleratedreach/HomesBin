@@ -99,47 +99,17 @@ async function safeGetSession(req?: Request) {
           console.log('🔍 Auth debug - First token attempt failed, trying setSession approach');
           
           try {
-            // Check which method is available in this Supabase version
-            let authResult;
+            await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: '' // We don't have refresh token in most cases
+            });
             
-            if (typeof supabase.auth.setSession === 'function') {
-              console.log('🔍 Auth debug - Using setSession to recover session');
-              authResult = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: accessToken // Try using the access token as refresh token as fallback
-              });
-            } else if (typeof supabase.auth.refreshSession === 'function') {
-              console.log('🔍 Auth debug - Using refreshSession to recover session');
-              authResult = await supabase.auth.refreshSession({
-                refresh_token: accessToken // Try using the access token as refresh token as fallback
-              });
-            } else {
-              console.warn('🔍 Auth debug - Neither setSession nor refreshSession available');
-              authResult = { error: new Error('Session refresh methods not available') };
-            }
-            
-            if (authResult.error) {
-              console.warn('Could not refresh session with token, trying getUser directly');
-              // If refresh fails, try to get user directly with token
-              const directUserResponse = await supabase.auth.getUser(accessToken);
-              userData = directUserResponse.data;
-              userError = directUserResponse.error;
-            } else {
-              // If refresh succeeds, get user from the session
-              userData = { user: authResult.data.session?.user };
-              userError = null;
-            }
-          } catch (sessionRefreshError) {
-            console.warn('Error refreshing session with token:', sessionRefreshError);
-            
-            // Last attempt - try getUser directly with the token
-            try {
-              const fallbackUserResponse = await supabase.auth.getUser(accessToken);
-              userData = fallbackUserResponse.data;
-              userError = fallbackUserResponse.error;
-            } catch (fallbackError) {
-              console.error('Final fallback getUser attempt failed:', fallbackError);
-            }
+            // Now try to get the user after setting the session
+            const sessionUserResponse = await supabase.auth.getUser();
+            userData = sessionUserResponse.data;
+            userError = sessionUserResponse.error;
+          } catch (sessionSetError) {
+            console.warn('Error setting session with token:', sessionSetError);
           }
         }
         
@@ -373,18 +343,19 @@ export function registerAuthRoutes(app: Express) {
    */
   app.get('/api/auth/user', async (req: Request, res: Response) => {
     try {
-      // Check authentication using our enhanced safeGetSession method
-      const { session, user } = await safeGetSession(req);
+      // Check current session
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       
-      if (!session || !user) {
-        console.log('🔍 Auth debug - No valid session found in /api/auth/user');
-        return res.status(401).json({ 
-          message: 'Not authenticated',
-          timestamp: new Date().toISOString()
-        });
+      if (sessionError || !sessionData.session) {
+        return res.status(401).json({ message: 'Not authenticated' });
       }
       
-      console.log('🔍 Auth success - User authenticated in /api/auth/user:', user.id);
+      // Get the user from the session
+      const user = sessionData.session.user;
+      
+      if (!user) {
+        return res.status(401).json({ message: 'No user in session' });
+      }
       
       // Get additional profile data
       const { data: profileData } = await supabase

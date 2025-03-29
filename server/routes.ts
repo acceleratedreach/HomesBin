@@ -186,7 +186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } 
     
-    // Success case - all config present but don't log actual values
+    // Success case - all config present
     console.log('[API Config] Providing Supabase config with valid credentials', {
       urlLength: supabaseUrl.length,
       keyLength: supabaseKey.length,
@@ -195,7 +195,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
 
     // Enhanced response with more context and debugging info
-    // But do NOT return actual credentials in logs
     res.json({
       supabase: {
         url: supabaseUrl,
@@ -227,34 +226,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       },
     })
   );
-
-  // Safety middleware to ensure req.session is always defined
-  // This prevents errors when using both Supabase auth and Express sessions
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    // Ensure req.session exists and has necessary methods
-    if (!req.session) {
-      (req as any).session = {
-        // Implement common methods that express-session uses
-        touch: () => {},
-        save: (cb: Function) => { 
-          if (typeof cb === 'function') cb(); 
-        },
-        regenerate: (cb: Function) => { 
-          if (typeof cb === 'function') cb(); 
-        },
-        destroy: (cb: Function) => { 
-          if (typeof cb === 'function') cb(); 
-        },
-        // Add a dummy data object
-        cookie: { maxAge: 24 * 60 * 60 * 1000 },
-        id: `dummy-${Date.now()}`
-      };
-    } else if (req.session && !req.session.touch) {
-      // If session exists but touch method is missing (which caused our error)
-      req.session.touch = () => {};
-    }
-    next();
-  });
 
   // Passport setup
   app.use(passport.initialize());

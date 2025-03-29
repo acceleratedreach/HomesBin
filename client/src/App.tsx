@@ -23,10 +23,10 @@ import PublicLotMapViewer from "@/pages/lotmap/PublicLotMapViewer";
 import VerifyEmail from "@/components/auth/VerifyEmail";
 import ResetPassword from "@/components/auth/ResetPassword";
 import ForgotPassword from "@/components/auth/ForgotPassword";
-import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthContextNew";
+import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthContext";
 import { useQuery } from "@tanstack/react-query";
 import ProfileSetup from "./pages/ProfileSetup";
-import { supabase } from "@/lib/supabase-new";
+import { supabase } from "@/lib/supabase";
 
 interface UserData {
   id: string;
@@ -207,64 +207,19 @@ function MainAppRoutes() {
             console.log("Found tokens in localStorage, attempting recovery");
             
             try {
-              // Try to restore session with the stored refresh token
-              // Initialize variables to hold refresh result
-              let refreshData = null;
-              let refreshError = null;
-                
-              // Check which session recovery method is available
-              if (typeof supabase.auth.refreshSession === 'function') {
-                console.log('Using refreshSession to recover user session...');
-                try {
-                  const refreshResult = await supabase.auth.refreshSession({
-                    refresh_token: refreshToken
-                  });
-                  
-                  refreshData = refreshResult.data;
-                  refreshError = refreshResult.error;
-                  
-                  if (refreshError) {
-                    console.error('Error in refreshSession recovery:', refreshError);
-                  }
-                } catch (e) {
-                  console.error('Exception in refreshSession call:', e);
-                }
-              } else if (typeof supabase.auth.setSession === 'function') {
-                console.log('Using setSession to recover user session...');
-                try {
-                  const setSessionResult = await supabase.auth.setSession({
-                    access_token: accessToken,
-                    refresh_token: refreshToken
-                  });
-                  
-                  refreshData = setSessionResult.data;
-                  refreshError = setSessionResult.error;
-                  
-                  if (refreshError) {
-                    console.error('Error in setSession recovery:', refreshError);
-                  }
-                } catch (e) {
-                  console.error('Exception in setSession call:', e);
-                }
-              } else {
-                console.warn('Neither refreshSession nor setSession available in MainAppRoutes - unable to recover session');
-              }
+              // Try to set session with the stored tokens
+              const { data, error } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken
+              });
               
-              // Use the result of the refresh attempt
-              const sessionResult = { 
-                data: refreshData, 
-                error: refreshError 
-              };
-              
-              if (sessionResult.error) {
-                console.warn("Failed to restore session with tokens:", sessionResult.error.message);
-              } else if (sessionResult.data?.session) {
+              if (error) {
+                console.warn("Failed to restore session with tokens:", error.message);
+              } else if (data.session) {
                 console.log("Successfully restored session from tokens");
                 // Refresh page to update auth context
                 window.location.reload();
                 return true;
-              } else {
-                console.log("No session data returned from recovery attempt");
               }
             } catch (tokenError) {
               console.error("Error using backup tokens:", tokenError);
