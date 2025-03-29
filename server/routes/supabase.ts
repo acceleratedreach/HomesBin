@@ -60,7 +60,7 @@ export function registerSupabaseRoutes(app: Express) {
       const publicTables = ['profiles', 'public_listings'];
       const { tableName } = req.params;
       
-      if (!publicTables.includes(tableName) && !req.session.user) {
+      if (!publicTables.includes(tableName) && !(req.session as any).user && !(req as any).user) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
 
@@ -98,8 +98,8 @@ export function registerSupabaseRoutes(app: Express) {
    */
   app.get('/api/supabase/:tableName/:id', async (req: Request, res: Response) => {
     try {
-      // Check if user is authenticated
-      if (!req.session.user) {
+      // Check if user is authenticated from either Express session or Supabase auth
+      if (!(req.session as any).user && !(req as any).user) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
 
@@ -127,8 +127,8 @@ export function registerSupabaseRoutes(app: Express) {
    */
   app.post('/api/supabase/:tableName', async (req: Request, res: Response) => {
     try {
-      // Check if user is authenticated
-      if (!req.session.user) {
+      // Check if user is authenticated from either Express session or Supabase auth
+      if (!(req.session as any).user && !(req as any).user) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
 
@@ -136,8 +136,9 @@ export function registerSupabaseRoutes(app: Express) {
       const data = req.body;
 
       // Add user_id to the data if not present
-      if (!data.user_id && req.session.user.id) {
-        data.user_id = req.session.user.id;
+      const userId = (req.session as any).user?.id || (req as any).user?.id;
+      if (!data.user_id && userId) {
+        data.user_id = userId;
       }
 
       const result = await SupabaseService.insert(tableName, data);
@@ -156,8 +157,8 @@ export function registerSupabaseRoutes(app: Express) {
    */
   app.put('/api/supabase/:tableName/:id', async (req: Request, res: Response) => {
     try {
-      // Check if user is authenticated
-      if (!req.session.user) {
+      // Check if user is authenticated from either Express session or Supabase auth
+      if (!(req.session as any).user && !(req as any).user) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
 
@@ -165,8 +166,9 @@ export function registerSupabaseRoutes(app: Express) {
       const data = req.body;
 
       // Ensure user can only update their own records
+      const userId = (req.session as any).user?.id || (req as any).user?.id;
       const record = await SupabaseService.getById(tableName, id);
-      if (record && 'user_id' in record && record.user_id !== req.session.user.id) {
+      if (record && 'user_id' in record && record.user_id !== userId) {
         return res.status(403).json({ message: 'Unauthorized' });
       }
 
@@ -186,16 +188,17 @@ export function registerSupabaseRoutes(app: Express) {
    */
   app.delete('/api/supabase/:tableName/:id', async (req: Request, res: Response) => {
     try {
-      // Check if user is authenticated
-      if (!req.session.user) {
+      // Check if user is authenticated from either Express session or Supabase auth
+      if (!(req.session as any).user && !(req as any).user) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
 
       const { tableName, id } = req.params;
 
       // Ensure user can only delete their own records
+      const userId = (req.session as any).user?.id || (req as any).user?.id;
       const record = await SupabaseService.getById(tableName, id);
-      if (record && 'user_id' in record && record.user_id !== req.session.user.id) {
+      if (record && 'user_id' in record && record.user_id !== userId) {
         return res.status(403).json({ message: 'Unauthorized' });
       }
 
@@ -215,8 +218,8 @@ export function registerSupabaseRoutes(app: Express) {
    */
   app.get('/api/supabase/:tableName/count', async (req: Request, res: Response) => {
     try {
-      // Check if user is authenticated
-      if (!req.session.user) {
+      // Check if user is authenticated from either Express session or Supabase auth
+      if (!(req.session as any).user && !(req as any).user) {
         return res.status(401).json({ message: 'Not authenticated' });
       }
 

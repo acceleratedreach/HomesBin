@@ -1,0 +1,146 @@
+2025-03-28 17:58:39.66
+6e70ea01
+User
+}
+2025-03-28 17:58:39.66
+6e70ea01
+User
+🔍 Auth debug - Using token from Authorization header (bearer-header)
+2025-03-28 17:58:39.66
+6e70ea01
+User
+🔍 Auth debug - Authenticating with token from bearer-header source
+2025-03-28 17:58:39.85
+6e70ea01
+User
+🔍 Auth success - Valid token from bearer-header
+2025-03-28 17:58:39.85
+6e70ea01
+User
+🔍 Auth middleware - User authenticated: 740dd18c-b03d-496a-a8f7-5ebd09a24dd1, method: token
+2025-03-28 17:58:40.08
+6e70ea01
+User
+/home/runner/workspace/node_modules/express-session/index.js:338
+2025-03-28 17:58:40.08
+6e70ea01
+User
+req.session.touch()
+2025-03-28 17:58:40.08
+6e70ea01
+User
+^
+2025-03-28 17:58:40.08
+6e70ea01
+User
+2025-03-28 17:58:40.08
+6e70ea01
+User
+TypeError: req.session.touch is not a function
+2025-03-28 17:58:40.08
+6e70ea01
+User
+at ServerResponse.end (/home/runner/workspace/node_modules/express-session/index.js:338:21)
+2025-03-28 17:58:40.08
+6e70ea01
+User
+at ServerResponse.send (/home/runner/workspace/node_modules/express/lib/response.js:232:10)
+2025-03-28 17:58:40.08
+6e70ea01
+User
+at ServerResponse.json (/home/runner/workspace/node_modules/express/lib/response.js:278:15)
+2025-03-28 17:58:40.08
+6e70ea01
+User
+at res.json (file:///home/runner/workspace/dist/index.js:3229:28)
+2025-03-28 17:58:40.08
+6e70ea01
+User
+at file:///home/runner/workspace/dist/index.js:2635:23
+2025-03-28 17:58:40.08
+6e70ea01
+User
+at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+2025-03-28 17:58:40.08
+6e70ea01
+User
+2025-03-28 17:58:40.08
+6e70ea01
+User
+Node.js v20.18.1
+2025-03-28 17:58:40.10
+6e70ea01
+User
+npm notice
+2025-03-28 17:58:40.10
+6e70ea01
+User
+npm notice New major version of npm available! 10.8.2 -> 11.2.0
+2025-03-28 17:58:40.10
+6e70ea01
+User
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.2.0
+2025-03-28 17:58:40.10
+6e70ea01
+User
+npm notice To update run: npm install -g npm@11.2.0
+2025-03-28 17:58:40.10
+6e70ea01
+User
+npm notice
+2025-03-28 17:58:40.11
+6e70ea01
+System
+command finished with error [sh -c npm run start]: exit status 1
+2025-03-28 17:58:40.30
+6e70ea01
+User
+> rest-express@1.0.0 start
+2025-03-28 17:58:40.30
+6e70ea01
+User
+> NODE_ENV=production node dist/index.js
+2025-03-28 17:59:00.79
+6e70ea01
+User
+SendGrid API key configured successfully
+2025-03-28 17:59:00.99
+6e70ea01
+User
+Starting environment loading with comprehensive fallbacks...
+2025-03-28 17:59:01.29
+6e70ea01
+User
+Successfully loaded environment variables from /home/runner/workspace/.env
+2025-03-28 17:59:01.29
+6e70ea01
+User
+Successfully loaded environment variables from /home/runner/workspace/.env.local
+2025-03-28 17:59:01.39
+6e70ea01
+User
+Successfully loaded environment variables from /home/runner/workspace/.env
+2025-03-28 17:59:01.49
+6e70ea01
+User
+Successfully loaded environment variables from /home/runner/workspace/.env.local
+2025-03-28 17:59:01.49
+6e70ea01
+User
+Environment files loaded: .env (root), .env.local (root), /home/runner/workspace/.env, /home/runner/workspace/.env.local, /home/runner/workspace/.env, /home/runner/workspace/.env.local
+2025-03-28 17:59:01.59
+6e70ea01
+User
+Supabase server configuration status: {
+2025-03-28 17:59:01.59
+6e70ea01
+User
+hasUrl: true,
+2025-03-28 17:59:01.59
+6e70ea01
+User
+hasKey: true,
+2025-03-28 17:59:01.59
+6e70ea01
+User
+environment: 'production',

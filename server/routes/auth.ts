@@ -523,8 +523,8 @@ export const supabaseAuth = async (req: Request, res: Response, next: NextFuncti
     
     // Attach enhanced user data to request for route handlers
     (req as any).user = enhancedUser;
-    // Also attach the raw session for access to tokens if needed
-    (req as any).session = session;
+    // Store the Supabase session in a supabaseSession property instead of overriding the Express session
+    (req as any).supabaseSession = session;
     
     // Continue to the requested route
     return next();
