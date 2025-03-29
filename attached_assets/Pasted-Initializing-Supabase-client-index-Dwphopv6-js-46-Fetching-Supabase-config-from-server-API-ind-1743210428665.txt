@@ -1,0 +1,75 @@
+Initializing Supabase client...
+index-Dwphopv6.js:46 Fetching Supabase config from server API...
+index-Dwphopv6.js:50 Debug tools added to window:
+index-Dwphopv6.js:50 • window.checkSupabaseEnv() - Verify environment setup
+index-Dwphopv6.js:50 • window.cleanSupabaseAuth() - Clean up auth tokens
+index-Dwphopv6.js:513 Login page state: {isAuthenticated: false, loading: true, directSessionCheck: null, hasUser: false, userEmail: undefined}
+index-Dwphopv6.js:566 Auth state in MainAppRoutes: {isAuthenticated: false, authLoading: true, currentPath: '/jackgannalo7/dashboard', user: null}
+index-Dwphopv6.js:566 Still loading auth state, delaying redirect decision
+index-Dwphopv6.js:428 Initializing auth context and checking for existing session...
+index-Dwphopv6.js:428 Found backup tokens in localStorage, will use if needed
+index-Dwphopv6.js:428 Getting current session from Supabase...
+index-Dwphopv6.js:428 Primary session check failed or returned no session
+(anonymous) @ index-Dwphopv6.js:428
+await in (anonymous)
+(anonymous) @ index-Dwphopv6.js:428
+av @ index-Dwphopv6.js:40
+dc @ index-Dwphopv6.js:40
+_E @ index-Dwphopv6.js:40
+Zo @ index-Dwphopv6.js:38
+R7 @ index-Dwphopv6.js:40
+ha @ index-Dwphopv6.js:40
+_I @ index-Dwphopv6.js:40
+j @ index-Dwphopv6.js:25
+N @ index-Dwphopv6.js:25Understand this warningAI
+index-Dwphopv6.js:428 Attempting session recovery with backup tokens...
+index-Dwphopv6.js:428 Error during session recovery attempt: TypeError: we.auth.setSession is not a function
+    at index-Dwphopv6.js:428:27463
+(anonymous) @ index-Dwphopv6.js:428
+await in (anonymous)
+(anonymous) @ index-Dwphopv6.js:428
+av @ index-Dwphopv6.js:40
+dc @ index-Dwphopv6.js:40
+_E @ index-Dwphopv6.js:40
+Zo @ index-Dwphopv6.js:38
+R7 @ index-Dwphopv6.js:40
+ha @ index-Dwphopv6.js:40
+_I @ index-Dwphopv6.js:40
+j @ index-Dwphopv6.js:25
+N @ index-Dwphopv6.js:25Understand this errorAI
+index-Dwphopv6.js:428 No valid session found after all attempts
+index-Dwphopv6.js:513 Login page: Checking session directly with Supabase
+index-Dwphopv6.js:513 Login page state: {isAuthenticated: false, loading: false, directSessionCheck: null, hasUser: false, userEmail: undefined}
+index-Dwphopv6.js:566 Auth state in MainAppRoutes: {isAuthenticated: false, authLoading: false, currentPath: '/jackgannalo7/dashboard', user: null}
+index-Dwphopv6.js:566 Redirect check: {isAuthenticated: false, currentPath: '/jackgannalo7/dashboard', hasUser: false, username: undefined}
+index-Dwphopv6.js:566 Detected unauthenticated access to protected route: /jackgannalo7/dashboard
+index-Dwphopv6.js:566 Attempting session recovery before redirecting...
+index-Dwphopv6.js:566 Direct session check with Supabase
+index-Dwphopv6.js:513 Direct session check result: {hasSession: false, userId: null}
+index-Dwphopv6.js:566 Checking for backup tokens in localStorage
+index-Dwphopv6.js:566 Found tokens in localStorage, attempting recovery
+index-Dwphopv6.js:566 Error using backup tokens: TypeError: we.auth.setSession is not a function
+    at index-Dwphopv6.js:566:62229
+(anonymous) @ index-Dwphopv6.js:566
+await in (anonymous)
+(anonymous) @ index-Dwphopv6.js:566
+(anonymous) @ index-Dwphopv6.js:566
+av @ index-Dwphopv6.js:40
+dc @ index-Dwphopv6.js:40
+(anonymous) @ index-Dwphopv6.js:40
+j @ index-Dwphopv6.js:25
+N @ index-Dwphopv6.js:25Understand this errorAI
+index-Dwphopv6.js:566 All recovery attempts failed, redirecting to login
+index-Dwphopv6.js:566 Auth state in MainAppRoutes: {isAuthenticated: false, authLoading: false, currentPath: '/login', user: null}
+index-Dwphopv6.js:566 Redirect check: {isAuthenticated: false, currentPath: '/login', hasUser: false, username: undefined}
+index-Dwphopv6.js:513 Login page state: {isAuthenticated: false, loading: false, directSessionCheck: false, hasUser: false, userEmail: undefined}
+index-Dwphopv6.js:46 Received config from server: {"supabase":{"url":"https://wgwlpmlfhirxbdtseure.supabase.co","key":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indnd2xwbWxmaGlyeGJkdHNldXJlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwMzc4MjYsImV4cCI6MjA1ODYxMzgyNn0.XrGQO_yiuq-UzK70vWiFSa_nUOdDKEmKwoPN8TU7_7w","siteUrl":"https://homesbin.com"},"production":true,"timestamp":"2025-03-29T01:06:09.237Z","environment":{"isReplit":true,"host":"homesbin.com","protocol":"https","nodeEnv":"production"}}
+index-Dwphopv6.js:46 Config extraction check: {hasUrl: true, hasKey: true, urlValue: 'https://...', keyValue: 'eyJhb...'}
+index-Dwphopv6.js:46 Supabase configuration loaded from server API
+index-Dwphopv6.js:46 Supabase client initialized successfully with API config
+index-Dwphopv6.js:46 Storage get [supabase.a...]: null
+index-Dwphopv6.js:46 Storage get [supabase.a...]: exists
+index-Dwphopv6.js:46 Storage get [supabase.a...]: exists
+index-Dwphopv6.js:46 Storage get [supabase.a...]: exists
+index-Dwphopv6.js:46 Initial session check: {success: true, hasSession: true, error: null}
+2index-Dwphopv6.js:46 Storage get [supabase.a...]: exists

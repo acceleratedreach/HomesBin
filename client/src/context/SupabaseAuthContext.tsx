@@ -10,6 +10,7 @@ interface Subscription {
   unsubscribe: () => void;
 }
 
+// Update the AuthListener type to match what supabase.auth.onAuthStateChange returns in v2.49.3
 interface AuthListener {
   data: {
     subscription: Subscription;
@@ -91,7 +92,10 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           if (backupTokens) {
             try {
               console.log('Attempting session recovery with backup tokens...');
-              const recoveryResult = await supabase.auth.setSession(backupTokens);
+              // Use refreshSession instead of setSession which isn't available in v2.49.3
+              const recoveryResult = await supabase.auth.refreshSession({
+                refresh_token: backupTokens.refresh_token
+              });
               
               if (recoveryResult.error) {
                 console.error('Failed to recover session with backup tokens:', recoveryResult.error);
@@ -174,7 +178,10 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
             }
           });
           
-          authListener = listenerResult.data;
+          // In v2.49.3, we need to get the subscription from the data property
+          authListener = {
+            subscription: listenerResult.data.subscription
+          };
         } catch (listenerError) {
           console.error('Failed to set up auth state change listener:', listenerError);
         }
@@ -206,8 +213,8 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 
                 if (backupAccess && backupRefresh) {
                   console.log('Attempting recovery during session check...');
-                  const recoveryResult = await supabase.auth.setSession({
-                    access_token: backupAccess,
+                  // Use refreshSession instead of setSession which isn't available in v2.49.3
+                  const recoveryResult = await supabase.auth.refreshSession({
                     refresh_token: backupRefresh
                   });
                   
@@ -236,9 +243,10 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         
         // Step 8: Cleanup function
         return () => {
-          if (authListener && authListener.subscription) {
+          if (authListener) {
             console.log('Cleaning up auth listener');
             try {
+              // In v2.49.3, we need to unsubscribe via the subscription property
               authListener.subscription.unsubscribe();
             } catch (unsubError) {
               console.warn('Error unsubscribing from auth listener:', unsubError);
@@ -448,13 +456,13 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
       // Ensure the auth event is triggered and session is persisted
       try {
         // Force the session to be persisted by the auth client
-        await supabase.auth.setSession({
-          access_token: session.access_token,
+        // Use refreshSession instead of setSession which isn't available in v2.49.3
+        await supabase.auth.refreshSession({
           refresh_token: session.refresh_token
         });
-        console.log('Session explicitly set via setSession API');
+        console.log('Session explicitly refreshed via refreshSession API');
       } catch (sessionSetError) {
-        console.error('Failed to explicitly set the session:', sessionSetError);
+        console.error('Failed to explicitly refresh the session:', sessionSetError);
       }
       
       // Double-check that session was actually set
@@ -469,15 +477,15 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           if (!checkResult?.data?.session) {
             console.warn('Session verification failed - session not persisted properly');
             
-            // Try one more time to set it
+            // Try one more time to refresh it
             try {
-              await supabase.auth.setSession({
-                access_token: session.access_token,
+              // Use refreshSession instead of setSession which isn't available in v2.49.3
+              await supabase.auth.refreshSession({
                 refresh_token: session.refresh_token
               });
-              console.log('Second attempt at setting session completed');
+              console.log('Second attempt at refreshing session completed');
             } catch (secondSetError) {
-              console.error('Second attempt to set session failed:', secondSetError);
+              console.error('Second attempt to refresh session failed:', secondSetError);
             }
           }
         } catch (e) {
@@ -592,17 +600,12 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
         console.error('Exception during primary signout:', primarySignOutError);
       }
       
-      // Approach 2: Clear session manually via API
+      // Approach 2: Let's skip manual session clearing since setSession isn't available
       try {
-        console.log('Approach 2: Explicit session clearing');
-        // This explicitly clears the current session
-        await supabase.auth.setSession({
-          access_token: '',
-          refresh_token: ''
-        });
-        console.log('Explicit session clearing completed');
+        console.log('Approach 2: Skipping explicit session clearing (not supported in this version)');
+        // We'll rely on signOut() and storage cleanup instead
       } catch (sessionClearError) {
-        console.warn('Error during explicit session clearing:', sessionClearError);
+        console.warn('Error during session handling:', sessionClearError);
       }
       
       // Approach 3: Clear all auth data from local storage

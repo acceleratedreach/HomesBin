@@ -207,9 +207,9 @@ function MainAppRoutes() {
             console.log("Found tokens in localStorage, attempting recovery");
             
             try {
-              // Try to set session with the stored tokens
-              const { data, error } = await supabase.auth.setSession({
-                access_token: accessToken,
+              // Try to restore session with the stored refresh token
+              // Use refreshSession instead of setSession which isn't available in v2.49.3
+              const { data, error } = await supabase.auth.refreshSession({
                 refresh_token: refreshToken
               });
               
