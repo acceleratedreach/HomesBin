@@ -94,16 +94,44 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           if (backupTokens) {
             try {
               console.log('Attempting session recovery with backup tokens...');
-              // Use refreshSession instead of setSession which isn't available in v2.49.3
-              const recoveryResult = await supabase.auth.refreshSession({
-                refresh_token: backupTokens.refresh_token
-              });
-              
-              if (recoveryResult.error) {
-                console.error('Failed to recover session with backup tokens:', recoveryResult.error);
-              } else if (recoveryResult.data?.session) {
-                console.log('Successfully recovered session from backup tokens');
-                sessionResult = recoveryResult;
+              // Check if refreshSession exists before trying to use it
+              if (typeof supabase.auth.refreshSession === 'function') {
+                try {
+                  const recoveryResult = await supabase.auth.refreshSession({
+                    refresh_token: backupTokens.refresh_token
+                  });
+                  
+                  if (recoveryResult.error) {
+                    console.error('Failed to recover session with backup tokens:', recoveryResult.error);
+                  } else if (recoveryResult.data?.session) {
+                    console.log('Successfully recovered session from backup tokens');
+                    sessionResult = recoveryResult;
+                  }
+                } catch (refreshError) {
+                  console.error('Error using refreshSession:', refreshError);
+                }
+              } else {
+                console.warn('refreshSession not available in this Supabase client version');
+                // Try a different approach - signIn with stored credentials if available
+                const email = localStorage.getItem('supabase_email');
+                const password = localStorage.getItem('supabase_password');
+                
+                if (email && password) {
+                  try {
+                    console.log('Attempting to sign in with stored credentials');
+                    const signInResult = await supabase.auth.signInWithPassword({
+                      email,
+                      password
+                    });
+                    
+                    if (!signInResult.error && signInResult.data?.session) {
+                      console.log('Successfully signed in with stored credentials');
+                      sessionResult = signInResult;
+                    }
+                  } catch (signInError) {
+                    console.error('Error signing in with stored credentials:', signInError);
+                  }
+                }
               }
             } catch (recoveryError) {
               console.error('Error during session recovery attempt:', recoveryError);
@@ -217,16 +245,45 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 
                 if (backupAccess && backupRefresh) {
                   console.log('Attempting recovery during session check...');
-                  // Use refreshSession instead of setSession which isn't available in v2.49.3
-                  const recoveryResult = await supabase.auth.refreshSession({
-                    refresh_token: backupRefresh
-                  });
-                  
-                  if (!recoveryResult.error && recoveryResult.data.session) {
-                    console.log('Successfully recovered session during check');
-                    setSession(recoveryResult.data.session);
-                    setUser(recoveryResult.data.session.user);
-                    return;
+                  // Check if refreshSession is available in this version
+                  if (typeof supabase.auth.refreshSession === 'function') {
+                    try {
+                      const recoveryResult = await supabase.auth.refreshSession({
+                        refresh_token: backupRefresh
+                      });
+                      
+                      if (!recoveryResult.error && recoveryResult.data.session) {
+                        console.log('Successfully recovered session during check');
+                        setSession(recoveryResult.data.session);
+                        setUser(recoveryResult.data.session.user);
+                        return;
+                      }
+                    } catch (refreshError) {
+                      console.error('Error using refreshSession during check:', refreshError);
+                    }
+                  } else {
+                    console.warn('refreshSession not available - trying alternative session recovery');
+                    // Try to sign in with stored credentials if available
+                    const email = localStorage.getItem('supabase_email');
+                    const password = localStorage.getItem('supabase_password');
+                    
+                    if (email && password) {
+                      try {
+                        const signInResult = await supabase.auth.signInWithPassword({
+                          email,
+                          password
+                        });
+                        
+                        if (!signInResult.error && signInResult.data.session) {
+                          console.log('Successfully signed in with stored credentials during check');
+                          setSession(signInResult.data.session);
+                          setUser(signInResult.data.session.user);
+                          return;
+                        }
+                      } catch (signInError) {
+                        console.error('Error signing in during check:', signInError);
+                      }
+                    }
                   }
                 }
               } catch (recoveryError) {
@@ -459,12 +516,24 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
       
       // Ensure the auth event is triggered and session is persisted
       try {
-        // Force the session to be persisted by the auth client
-        // Use refreshSession instead of setSession which isn't available in v2.49.3
-        await supabase.auth.refreshSession({
-          refresh_token: session.refresh_token
-        });
-        console.log('Session explicitly refreshed via refreshSession API');
+        // Check if refreshSession is available in this version of Supabase
+        if (typeof supabase.auth.refreshSession === 'function') {
+          // Force the session to be persisted by the auth client
+          console.log('Using refreshSession to persist session...');
+          await supabase.auth.refreshSession({
+            refresh_token: session.refresh_token
+          });
+          console.log('Session explicitly refreshed via refreshSession API');
+        } else {
+          console.warn('refreshSession not available - saving session data to localStorage');
+          // Store credentials in localStorage as a backup authentication method
+          try {
+            localStorage.setItem('supabase_email', email);
+            localStorage.setItem('supabase_password', password);
+          } catch (storageError) {
+            console.warn('Failed to store credentials in localStorage:', storageError);
+          }
+        }
       } catch (sessionSetError) {
         console.error('Failed to explicitly refresh the session:', sessionSetError);
       }
@@ -481,13 +550,18 @@ export const SupabaseAuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
           if (!checkResult?.data?.session) {
             console.warn('Session verification failed - session not persisted properly');
             
-            // Try one more time to refresh it
+            // Try one more time to refresh it if the method exists
             try {
-              // Use refreshSession instead of setSession which isn't available in v2.49.3
-              await supabase.auth.refreshSession({
-                refresh_token: session.refresh_token
-              });
-              console.log('Second attempt at refreshing session completed');
+              if (typeof supabase.auth.refreshSession === 'function') {
+                console.log('Making second attempt to refresh session...');
+                await supabase.auth.refreshSession({
+                  refresh_token: session.refresh_token
+                });
+                console.log('Second attempt at refreshing session completed');
+              } else {
+                console.warn('refreshSession not available for second session persistence attempt');
+                // Additional fallback here - local storage is already handled above
+              }
             } catch (secondSetError) {
               console.error('Second attempt to refresh session failed:', secondSetError);
             }

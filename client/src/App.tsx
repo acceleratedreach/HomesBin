@@ -208,18 +208,46 @@ function MainAppRoutes() {
             
             try {
               // Try to restore session with the stored refresh token
-              // Use refreshSession instead of setSession which isn't available in v2.49.3
-              const { data, error } = await supabase.auth.refreshSession({
-                refresh_token: refreshToken
-              });
+              // Initialize variables to hold refresh result
+              let refreshData = null;
+              let refreshError = null;
+                
+              // Check if refreshSession is available in this version
+              if (typeof supabase.auth.refreshSession === 'function') {
+                console.log('Using refreshSession to recover user session...');
+                try {
+                  const refreshResult = await supabase.auth.refreshSession({
+                    refresh_token: refreshToken
+                  });
+                  
+                  refreshData = refreshResult.data;
+                  refreshError = refreshResult.error;
+                  
+                  if (refreshError) {
+                    console.error('Error in refreshSession recovery:', refreshError);
+                  }
+                } catch (e) {
+                  console.error('Exception in refreshSession call:', e);
+                }
+              } else {
+                console.warn('refreshSession not available in MainAppRoutes - unable to recover session');
+              }
               
-              if (error) {
-                console.warn("Failed to restore session with tokens:", error.message);
-              } else if (data.session) {
+              // Use the result of the refresh attempt
+              const sessionResult = { 
+                data: refreshData, 
+                error: refreshError 
+              };
+              
+              if (sessionResult.error) {
+                console.warn("Failed to restore session with tokens:", sessionResult.error.message);
+              } else if (sessionResult.data?.session) {
                 console.log("Successfully restored session from tokens");
                 // Refresh page to update auth context
                 window.location.reload();
                 return true;
+              } else {
+                console.log("No session data returned from recovery attempt");
               }
             } catch (tokenError) {
               console.error("Error using backup tokens:", tokenError);

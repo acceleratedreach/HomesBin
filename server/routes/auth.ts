@@ -99,17 +99,33 @@ async function safeGetSession(req?: Request) {
           console.log('🔍 Auth debug - First token attempt failed, trying setSession approach');
           
           try {
-            await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: '' // We don't have refresh token in most cases
+            // Using refreshSession in v2.49.3 instead of setSession which is not available
+            const refreshResult = await supabase.auth.refreshSession({
+              refresh_token: accessToken // Try using the access token as refresh token as fallback
             });
             
-            // Now try to get the user after setting the session
-            const sessionUserResponse = await supabase.auth.getUser();
-            userData = sessionUserResponse.data;
-            userError = sessionUserResponse.error;
-          } catch (sessionSetError) {
-            console.warn('Error setting session with token:', sessionSetError);
+            if (refreshResult.error) {
+              console.warn('Could not refresh session with token, trying getUser directly');
+              // If refresh fails, try to get user directly with token
+              const directUserResponse = await supabase.auth.getUser(accessToken);
+              userData = directUserResponse.data;
+              userError = directUserResponse.error;
+            } else {
+              // If refresh succeeds, get user from the session
+              userData = { user: refreshResult.data.session?.user };
+              userError = null;
+            }
+          } catch (sessionRefreshError) {
+            console.warn('Error refreshing session with token:', sessionRefreshError);
+            
+            // Last attempt - try getUser directly with the token
+            try {
+              const fallbackUserResponse = await supabase.auth.getUser(accessToken);
+              userData = fallbackUserResponse.data;
+              userError = fallbackUserResponse.error;
+            } catch (fallbackError) {
+              console.error('Final fallback getUser attempt failed:', fallbackError);
+            }
           }
         }
         
