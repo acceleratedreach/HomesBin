@@ -1,0 +1,152 @@
+2025-03-28 19:02:28.71
+bd9b92b8
+System
+forwarding local port 5000 to external port 80
+2025-03-28 19:02:30.32
+bd9b92b8
+User
+> rest-express@1.0.0 start
+2025-03-28 19:02:30.32
+bd9b92b8
+User
+> NODE_ENV=production node dist/index.js
+2025-03-28 19:02:32.03
+bd9b92b8
+User
+SendGrid API key configured successfully
+2025-03-28 19:02:32.03
+bd9b92b8
+User
+Starting environment loading with comprehensive fallbacks...
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+Successfully loaded environment variables from /home/runner/workspace/.env
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+Successfully loaded environment variables from /home/runner/workspace/.env.local
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+Successfully loaded environment variables from /home/runner/workspace/.env
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+Successfully loaded environment variables from /home/runner/workspace/.env.local
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+Environment files loaded: .env (root), .env.local (root), /home/runner/workspace/.env, /home/runner/workspace/.env.local, /home/runner/workspace/.env, /home/runner/workspace/.env.local
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+Supabase server configuration status: {
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+hasUrl: true,
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+hasKey: true,
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+environment: 'production',
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+urlLength: 40,
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+keyLength: 208,
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+isReplit: true,
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+isProd: true
+2025-03-28 19:02:32.04
+bd9b92b8
+User
+}
+2025-03-28 19:02:32.05
+bd9b92b8
+User
+Supabase client initialized with credentials
+2025-03-28 19:02:32.05
+bd9b92b8
+User
+SendGrid API key configured successfully
+2025-03-28 19:02:32.06
+bd9b92b8
+User
+Supabase client test query result: { success: true, hasSession: false }
+2025-03-28 19:02:32.19
+bd9b92b8
+User
+2:02:32 AM [express] serving on port 5000
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+[API Config] Running in Replit or production environment
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+[API Config] Debug - Replit environment: {
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+REPL_ID: true,
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+REPL_SLUG: true,
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+REPL_OWNER: true,
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+host: 'homesbin.replit.app'
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+}
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+[API Config] Debug - Production environment variables found: REPLIT_PID1_FLAG_REPLIT_RTLD_LOADER, npm_command, SERVER_NAME, npm_config_userconfig, REPLIT_BUILD_ID, npm_config_cache, NIX_BUILD_CORES, REPL_OWNER, DATABASE_URL, configureFlags, NIXPKGS_ALLOW_UNFREE, mesonFlags, HOSTNAME, __EGL_VENDOR_LIBRARY_FILENAMES, shell, depsHostHost, NODE, REPLIT_DOMAINS, LD_AUDIT, PGPORT, K_REVISION, XDG_DATA_HOME, REPL_OWNER_ID, STRINGS, XDG_CONFIG_HOME, depsTargetTarget, REPLIT_DEPLOYMENT_ID, REPLIT_LD_AUDIT, stdenv, COLOR, npm_config_local_prefix, builder, REPLIT_CLI, shellHook, GIT_CONFIG_GLOBAL, npm_config_globalconfig, EDITOR, phases, REPLIT_USER, CLOUD_RUN_TIMEOUT_SECONDS, REPLIT_SUBCLUSTER, PWD, NIX_PROFILES, SOURCE_DATE_EPOCH, NIX_ENFORCE_NO_NATIVE, PORT, REPLIT_SESSION, NIX_PATH, npm_config_init_module, SUPABASE_URL, NODE_ENV, CXX, REPL_ID, system, HOST_PATH, doInstallCheck, HOME, NIX_BINTOOLS, LANG, depsTargetTargetPropagated, REPLIT_RIPPKGS_INDICES, npm_package_version, cmakeFlags, outputs, NIX_STORE, PGUSER, REPLIT_USER_RUN, REPLIT_HEIMDALL_ADDR, REPL_IMAGE, LD, buildPhase, DIRENV_CONFIG, K_SERVICE, INIT_CWD, READELF, REPLIT_PID1_FLAG_NIXMODULES_BEFORE_REPLIT_NIX, XDG_CACHE_HOME, npm_lifecycle_script, doCheck, REPLIT_RTLD_LOADER, npm_config_npm_version, depsBuildBuild, AUTOCONTAINER_CPU_PROFILE, REPLIT_DEV_DOMAIN, REPLIT_ENABLE_METASIDECAR, npm_package_name, REPLIT_CLUSTER, REPLIT_BASHRC, SIZE, propagatedNativeBuildInputs, HTTP_HOST, npm_config_prefix, REPL_LANGUAGE, strictDeps, USER, REPL_HOME, REPLIT_PID1_VERSION, AR, AS, REPLIT_DEPLOYMENT_ENVIRONMENT, DISPLAY, NIX_BINTOOLS_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu, npm_lifecycle_event, SHLVL, NIX_BUILD_TOP, NM, REPLIT_NIX_CHANNEL, GIT_EDITOR, NIX_CFLAGS_COMPILE, PGDATABASE, patches, REPLIT_USERID, LIBGL_DRIVERS_PATH, buildInputs, preferLocalBuild, LOCALE_ARCHIVE, npm_config_user_agent, npm_execpath, REPLIT_ENVIRONMENT, depsBuildTarget, OBJCOPY, PGHOST, out, npm_package_json, REPLIT_LD_LIBRARY_PATH, STRIP, AUTOCONTAINER_OPT_TRACE, XDG_DATA_DIRS, REPLIT_DEPLOYMENT, OBJDUMP, npm_config_noproxy, PATH, propagatedBuildInputs, npm_config_node_gyp, DOCKER_CONFIG, CC, NIX_CC, __ETC_PROFILE_SOURCED, depsBuildTargetPropagated, depsBuildBuildPropagated, npm_config_global_prefix, NIX_CC_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu, WEB_REPL_RENEWAL, CONFIG_SHELL, __structuredAttrs, npm_node_execpath, RANLIB, NIX_HARDENING_ENABLE, K_CONFIGURATION, REPL_SLUG, NIX_LDFLAGS, nativeBuildInputs, depsHostHostPropagated, SITE_URL, VITE_SUPABASE_URL, REACT_APP_SUPABASE_URL, REPLIT_SUPABASE_URL
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+[API Config] Providing Supabase config with valid credentials {
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+urlLength: 40,
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+keyLength: 208,
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+detectedSiteUrl: 'https://homesbin.replit.app',
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+isReplit: true
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+}
+2025-03-28 19:04:00.71
+bd9b92b8
+User
+2:04:00 AM [express] GET /api/config 200 in 4ms :: {"supabase":{"url":"https://wgwlpmlfhirxbdtseure.…

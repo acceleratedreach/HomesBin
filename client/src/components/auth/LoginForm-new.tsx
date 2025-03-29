@@ -120,66 +120,22 @@ export default function LoginForm() {
         
         console.log('Sign in function completed successfully');
         
-        // Success case - we have both session and user
-        console.log('Sign in successful, session established');
-        
-        // If we got here, authentication was successful
-        
-        // Double-check that session was actually set
-        setTimeout(async () => {
-          try {
-            const checkResult = await supabase.auth.getSession();
-            console.log('Session check after login:', { 
-              hasSession: !!checkResult?.data?.session
-            });
-            
-            // Explicitly extract and store token in localStorage for API requests
-            if (checkResult?.data?.session?.access_token) {
-              try {
-                localStorage.setItem('sb-access-token', checkResult.data.session.access_token);
-                
-                // Set a cookie as well for additional redundancy
-                const oneWeek = 60 * 60 * 24 * 7;
-                document.cookie = `sb-access-token=${checkResult.data.session.access_token};max-age=${oneWeek};path=/;SameSite=Lax`;
-                
-                console.log('Explicitly stored access token in localStorage and cookie');
-              } catch (e) {
-                console.warn('Error storing token explicitly:', e);
-              }
-            }
-          } catch (e) {
-            console.warn('Error in post-login session check:', e);
-          }
-        }, 100);
-        
-        // Save the session timestamp to localStorage
-        try {
-          localStorage.setItem('sb-session-active', 'true');
-          localStorage.setItem('sb-provider', 'email');
-          // Store a timestamp to detect stale sessions
-          localStorage.setItem('sb-auth-timestamp', Date.now().toString());
-          
-          // Also store in sessionStorage for redundancy
-          sessionStorage.setItem('sb-session-active', 'true');
-        } catch (storageError) {
-          console.warn('Could not save to localStorage:', storageError);
-        }
-        
         // Show success message
         toast({
           title: "Login successful",
           description: "Redirecting to dashboard..."
         });
         
-        // Add a longer delay to ensure the session is properly established
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Add a delay to ensure the session is properly established
+        await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Don't redirect; reload the page to ensure a fresh state
-        console.log('Reloading page to ensure fresh session state...');
+        // Construct the redirection URL with the username
+        const authUser = signInResult.data?.user;
+        const username = authUser?.user_metadata?.username || authUser?.email?.split('@')[0] || 'dashboard';
+        const redirectUrl = `/${username}/dashboard`;
         
-        // Reload the page to ensure the auth context is properly updated
-        window.location.href = '/';
-        return;
+        // Use window.location for a full page refresh with the proper URL
+        window.location.href = redirectUrl;
       } catch (signInError: any) {
         console.error('Login error during sign in:', signInError);
         toast({

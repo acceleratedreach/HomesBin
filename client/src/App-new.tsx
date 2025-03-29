@@ -153,153 +153,10 @@ function MainAppRoutes() {
       }
     }
     
-    // Handle protected routes when not authenticated - BUT only if we're sure auth is not in a transitional state
+    // Handle protected routes when not authenticated
     if (!isAuthenticated && !isPublicRoute && !authLoading) {
       console.log("Detected unauthenticated access to protected route:", location);
-      
-      // Define a function to handle recovery attempts
-      const attemptSessionRecovery = async () => {
-        console.log("Attempting session recovery before redirecting...");
-        
-        // First, check directly with Supabase API
-        try {
-          console.log("Direct session check with Supabase");
-          const { data, error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.warn("Error checking session:", error.message);
-          } else if (data.session) {
-            console.log("Session found directly in Supabase but not in context");
-            // Session exists, just missing from context - refresh page to sync
-            console.log("Refreshing page to restore session context");
-            
-            // Set a flag to prevent infinite refresh loops
-            try {
-              const lastRefresh = localStorage.getItem('sb-last-refresh');
-              const now = Date.now();
-              
-              if (lastRefresh && now - parseInt(lastRefresh) < 5000) {
-                console.warn("Detected potential refresh loop, redirecting to login instead");
-                localStorage.removeItem('sb-last-refresh');
-                navigate('/login', { replace: true });
-                return false;
-              }
-              
-              localStorage.setItem('sb-last-refresh', now.toString());
-              window.location.reload();
-              return true;
-            } catch (e) {
-              console.error("Error handling refresh:", e);
-            }
-            return true;
-          }
-        } catch (e) {
-          console.error("Exception during direct session check:", e);
-        }
-        
-        // Second, try retrieving and using backup tokens
-        try {
-          console.log("Checking for backup tokens in localStorage");
-          const accessToken = localStorage.getItem('sb-access-token');
-          const refreshToken = localStorage.getItem('sb-refresh-token');
-          
-          if (accessToken && refreshToken) {
-            console.log("Found tokens in localStorage, attempting recovery");
-            
-            try {
-              // Try to restore session with the stored refresh token
-              // Initialize variables to hold refresh result
-              let refreshData = null;
-              let refreshError = null;
-                
-              // Check which session recovery method is available
-              if (typeof supabase.auth.refreshSession === 'function') {
-                console.log('Using refreshSession to recover user session...');
-                try {
-                  const refreshResult = await supabase.auth.refreshSession({
-                    refresh_token: refreshToken
-                  });
-                  
-                  refreshData = refreshResult.data;
-                  refreshError = refreshResult.error;
-                  
-                  if (refreshError) {
-                    console.error('Error in refreshSession recovery:', refreshError);
-                  }
-                } catch (e) {
-                  console.error('Exception in refreshSession call:', e);
-                }
-              } else if (typeof supabase.auth.setSession === 'function') {
-                console.log('Using setSession to recover user session...');
-                try {
-                  const setSessionResult = await supabase.auth.setSession({
-                    access_token: accessToken,
-                    refresh_token: refreshToken
-                  });
-                  
-                  refreshData = setSessionResult.data;
-                  refreshError = setSessionResult.error;
-                  
-                  if (refreshError) {
-                    console.error('Error in setSession recovery:', refreshError);
-                  }
-                } catch (e) {
-                  console.error('Exception in setSession call:', e);
-                }
-              } else {
-                console.warn('Neither refreshSession nor setSession available in MainAppRoutes - unable to recover session');
-              }
-              
-              // Use the result of the refresh attempt
-              const sessionResult = { 
-                data: refreshData, 
-                error: refreshError 
-              };
-              
-              if (sessionResult.error) {
-                console.warn("Failed to restore session with tokens:", sessionResult.error.message);
-              } else if (sessionResult.data?.session) {
-                console.log("Successfully restored session from tokens");
-                // Refresh page to update auth context
-                window.location.reload();
-                return true;
-              } else {
-                console.log("No session data returned from recovery attempt");
-              }
-            } catch (tokenError) {
-              console.error("Error using backup tokens:", tokenError);
-            }
-          }
-        } catch (e) {
-          console.error("Error accessing localStorage:", e);
-        }
-        
-        // If we get here, recovery failed
-        console.log("All recovery attempts failed, redirecting to login");
-        return false;
-      };
-      
-      // Execute recovery attempts and redirect if they fail
-      attemptSessionRecovery().then(recovered => {
-        if (!recovered) {
-          // Clear any potentially invalid tokens before redirecting
-          try {
-            const tokensToRemove = [
-              'sb-access-token', 'sb-refresh-token', 'sb-user-id', 
-              'sb-session-active', 'sb-auth-timestamp'
-            ];
-            
-            for (const key of tokensToRemove) {
-              localStorage.removeItem(key);
-            }
-          } catch (e) {
-            console.warn("Error clearing tokens:", e);
-          }
-          
-          navigate('/login', { replace: true });
-        }
-      });
-      
+      navigate('/login', { replace: true });
       return;
     }
     
@@ -421,12 +278,15 @@ function MainAppRoutes() {
       
       {/* Lot Map Editor Routes */}
       <Route path="/:username/lot-maps/:slug/editor">
-        {() => isAuthenticated ? <LotMapEditor /> : <Login />}
+        {(params) => isAuthenticated ? <LotMapEditor /> : <Login />}
       </Route>
-      
-      {/* Public Lot Map Viewer */}
-      <Route path="/homesbin.com/:slug">
-        {() => <PublicLotMapViewer />}
+      <Route path="/lot-maps/:slug/editor">
+        {(params) => isAuthenticated ? <LotMapEditor /> : <Login />}
+      </Route>
+
+      {/* Public Lot Map Viewer (no auth required) */}
+      <Route path="/map/:slug">
+        {(params) => <PublicLotMapViewer mapSlug={params.slug} />}
       </Route>
       
       {/* Theme Routes */}
@@ -441,94 +301,39 @@ function MainAppRoutes() {
       <Route path="/profile/:username">
         {(params) => <Profile username={params.username} />}
       </Route>
-      
       <Route path="/profile">
-        {() => currentUser?.username ? 
-          <Profile username={currentUser.username} /> : 
-          (isAuthenticated ? <Profile username="" /> : <Login />)
-        }
+        {() => <Profile username="" />}
       </Route>
       
-      {/* Landing Page */}
-      <Route path="/">
-        {() => <LandingPage />}
-      </Route>
-      
-      {/* Custom profile route that matches /:username but doesn't interfere with other routes */}
-      <Route path="/:username">
-        {(params) => {
-          // Skip this route handler if the username matches any known route
-          const knownRoutes = ['login', 'register', 'verify-email', 'reset-password', 
-                              'forgot-password', 'dashboard', 'settings', 'listings',
-                              'email-marketing', 'social-content', 'listing-graphics',
-                              'lot-maps', 'theme', 'profile'];
-          
-          if (knownRoutes.includes(params.username)) {
-            return <NotFound />;
-          }
-          
-          return <Profile username={params.username} />;
-        }}
-      </Route>
-      
-      {/* Profile Setup Route */}
+      {/* Profile Setup - only for authenticated users */}
       <Route path="/profile-setup">
         {() => isAuthenticated ? <ProfileSetup /> : <Login />}
       </Route>
       
-      {/* Fallback for undefined routes */}
-      <Route path="*">
+      {/* Landing page */}
+      <Route path="/">
+        {() => <LandingPage />}
+      </Route>
+      
+      {/* 404 Not Found */}
+      <Route>
         {() => <NotFound />}
       </Route>
     </Switch>
   );
 }
 
-function App() {
-  // Function to handle authentication errors
-  const handleAuthError = () => {
-    console.log("Handling auth error - clearing local storage and redirecting");
-    
-    // Clear all authentication-related items in storage
-    try {
-      // Clear local storage
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('supabase') || key.includes('sb-'))) {
-          console.log(`Removing localStorage key: ${key}`);
-          localStorage.removeItem(key);
-        }
-      }
-      
-      // Clear session cookies by setting expired date
-      document.cookie = 'sb-access-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-      document.cookie = 'sb-refresh-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-      document.cookie = 'supabase-auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-      
-      // Reload the application to get a clean state
-      window.location.href = '/login';
-    } catch (error) {
-      console.error("Error clearing auth data:", error);
-    }
-  };
-  
+export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SupabaseAuthProvider>
-        <div className="app-container">
-          <button 
-            onClick={handleAuthError}
-            className="fixed bottom-4 right-4 bg-red-500 text-white p-2 rounded text-xs opacity-0 hover:opacity-100 z-50 transition-opacity"
-            title="Reset authentication state if you're having login issues"
-          >
-            Reset Auth
-          </button>
-          <MainAppRoutes />
-          <Toaster />
+        <div className="flex flex-col min-h-[100dvh]">
+          <main className="flex-1">
+            <MainAppRoutes />
+          </main>
         </div>
+        <Toaster />
       </SupabaseAuthProvider>
     </QueryClientProvider>
   );
 }
-
-export default App;
