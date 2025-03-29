@@ -6,9 +6,20 @@ import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
 import { supabase } from "@/lib/supabase";
 
 export default function Login() {
-  const [, setLocation] = useLocation();
+  const [, navigate] = useLocation();
   const { isAuthenticated, user, loading } = useSupabaseAuth();
   const [directSessionCheck, setDirectSessionCheck] = useState<boolean | null>(null);
+  
+  // Debug login page state
+  useEffect(() => {
+    console.log("Login page state:", { 
+      isAuthenticated, 
+      loading, 
+      directSessionCheck, 
+      hasUser: !!user,
+      userEmail: user?.email,
+    });
+  }, [isAuthenticated, loading, directSessionCheck, user]);
   
   // Perform a direct session check with Supabase
   useEffect(() => {
@@ -30,12 +41,6 @@ export default function Login() {
         });
         
         setDirectSessionCheck(hasSession);
-        
-        // If we have a session but the context hasn't caught up yet, trigger a redirect
-        if (hasSession && !isAuthenticated && !loading) {
-          console.log("Session found directly but not in context; redirecting to dashboard");
-          window.location.href = "/dashboard";
-        }
       } catch (e) {
         console.error("Error in direct session check:", e);
         setDirectSessionCheck(false);
@@ -47,37 +52,35 @@ export default function Login() {
     }
   }, [isAuthenticated, loading]);
   
-  // Debug login page state
+  // Only redirect to dashboard if already authenticated
   useEffect(() => {
-    console.log("Login page state:", { 
-      isAuthenticated, 
-      loading, 
-      directSessionCheck, 
-      hasUser: !!user,
-      userEmail: user?.email,
-    });
-  }, [isAuthenticated, loading, directSessionCheck, user]);
-  
-  // Redirect to dashboard if already logged in
-  useEffect(() => {
-    // If we're authenticated according to the context
+    // Only run this effect if we're sure about the auth state and user data is available
     if (!loading && isAuthenticated && user) {
       console.log("Already authenticated in context, redirecting from login page");
       
-      // Get username from user metadata
-      const username = user.user_metadata?.username || 
-                       user.email?.split('@')[0] || 
-                       'dashboard';
+      // First try to get username from user data in a safe way
+      let username = null;
       
-      // Redirect to user-specific dashboard
-      window.location.href = `/${username}/dashboard`;
+      // Check user metadata
+      if (user.user_metadata?.username) {
+        username = user.user_metadata.username;
+      } 
+      // Fall back to email prefix
+      else if (user.email) {
+        username = user.email.split('@')[0];
+      }
+      
+      // Only redirect to a username-prefixed route if we're certain we have a valid username
+      if (username && username.length > 1 && !username.includes('/')) {
+        console.log(`Redirecting to /${username}/dashboard`);
+        navigate(`/${username}/dashboard`, { replace: true });
+      } else {
+        // If username can't be determined, use the generic route
+        console.log("Username not available, redirecting to /dashboard");
+        navigate("/dashboard", { replace: true });
+      }
     }
-    // Also redirect if we detected a session directly with Supabase
-    else if (directSessionCheck === true) {
-      console.log("Session detected directly, redirecting to dashboard");
-      window.location.href = "/dashboard";
-    }
-  }, [isAuthenticated, loading, user, directSessionCheck]);
+  }, [isAuthenticated, loading, user, navigate]);
   
   return (
     <div className="min-h-screen flex flex-col">

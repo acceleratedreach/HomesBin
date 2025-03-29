@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -27,6 +27,7 @@ import { SupabaseAuthProvider, useSupabaseAuth } from "@/context/SupabaseAuthCon
 import { useQuery } from "@tanstack/react-query";
 import ProfileSetup from "./pages/ProfileSetup";
 import { supabase } from "@/lib/supabase";
+import { Button } from "@/components/ui/button";
 
 interface UserData {
   id: string;
@@ -53,6 +54,11 @@ const PUBLIC_ROUTES = [
 function MainAppRoutes() {
   const [location, navigate] = useLocation();
   const { user, isAuthenticated, loading: authLoading } = useSupabaseAuth();
+  
+  // Add a reference to track if we've attempted recovery
+  const recoveryAttempted = useRef(false);
+  // Add debounce reference to prevent multiple redirects
+  const redirectTimeout = useRef<NodeJS.Timeout | null>(null);
   
   // Log authentication state for debugging
   useEffect(() => {
@@ -99,6 +105,26 @@ function MainAppRoutes() {
   
   // Simple auth check function to centralize logic
   const redirectBasedOnAuth = useCallback(() => {
+    // Clear any pending redirects first to prevent cascading redirects
+    if (redirectTimeout.current) {
+      clearTimeout(redirectTimeout.current);
+      redirectTimeout.current = null;
+    }
+    
+    // Skip redirect checks for public routes
+    if (
+      location === '/' || 
+      location === '/login' ||
+      location === '/register' ||
+      location.startsWith('/verify-email') ||
+      location.startsWith('/reset-password') ||
+      location.startsWith('/forgot-password') ||
+      location.startsWith('/profile/')
+    ) {
+      console.log("Route is public, not checking auth redirects");
+      return;
+    }
+    
     // Don't redirect while still loading auth state
     if (authLoading) {
       console.log("Still loading auth state, delaying redirect decision");
@@ -109,31 +135,9 @@ function MainAppRoutes() {
       isAuthenticated, 
       currentPath: location,
       hasUser: !!user,
-      username: currentUser?.username
+      username: currentUser?.username,
+      recoveryAttempted: recoveryAttempted.current
     });
-    
-    // Root path doesn't need redirection
-    if (location === '/') return;
-    
-    // Add some paths that should never redirect 
-    if (location.startsWith('/verify-email') || 
-        location.startsWith('/reset-password') ||
-        location.startsWith('/forgot-password')) {
-      return;
-    }
-    
-    // Check if current path is public
-    const isPublicRoute = PUBLIC_ROUTES.includes(location) || 
-                          location.startsWith('/profile/') ||
-                          location === '/profile';
-    
-    // Handle login/register pages when already authenticated
-    if (isAuthenticated && (location === '/login' || location === '/register')) {
-      console.log("Already authenticated, redirecting to dashboard");
-      const username = currentUser?.username || user?.email?.split('@')[0] || 'user';
-      navigate(`/${username}/dashboard`, { replace: true });
-      return;
-    }
     
     // Extract username from path for user-specific routes
     const pathParts = location.split('/').filter(Boolean);
@@ -148,148 +152,162 @@ function MainAppRoutes() {
           ['dashboard', 'settings', 'listings', 'email-marketing', 'social-content', 
            'listing-graphics', 'lot-maps', 'theme'].includes(routeName)) {
         console.log(`User ${currentUser.username} trying to access ${urlUsername}'s route, redirecting`);
-        navigate(`/${currentUser.username}/${routeName}`, { replace: true });
+        redirectTimeout.current = setTimeout(() => {
+          navigate(`/${currentUser.username}/${routeName}`, { replace: true });
+        }, 100);
         return;
       }
     }
+    
+    // Check if current path is a public route that doesn't require authentication
+    const isPublicRoute = PUBLIC_ROUTES.includes(location) || 
+                          location.startsWith('/profile/') ||
+                          location === '/profile';
     
     // Handle protected routes when not authenticated - BUT only if we're sure auth is not in a transitional state
     if (!isAuthenticated && !isPublicRoute && !authLoading) {
       console.log("Detected unauthenticated access to protected route:", location);
       
-      // Define a function to handle recovery attempts
-      const attemptSessionRecovery = async () => {
-        console.log("Attempting session recovery before redirecting...");
+      // Only attempt recovery once per session to prevent loops
+      if (!recoveryAttempted.current) {
+        recoveryAttempted.current = true;
         
-        // First, check directly with Supabase API
-        try {
-          console.log("Direct session check with Supabase");
-          const { data, error } = await supabase.auth.getSession();
+        // Define a function to handle recovery attempts
+        const attemptSessionRecovery = async () => {
+          console.log("Attempting session recovery before redirecting...");
           
-          if (error) {
-            console.warn("Error checking session:", error.message);
-          } else if (data.session) {
-            console.log("Session found directly in Supabase but not in context");
-            // Session exists, just missing from context - refresh page to sync
-            console.log("Refreshing page to restore session context");
+          // First, check directly with Supabase API
+          try {
+            console.log("Direct session check with Supabase");
+            const { data, error } = await supabase.auth.getSession();
             
-            // Set a flag to prevent infinite refresh loops
-            try {
-              const lastRefresh = localStorage.getItem('sb-last-refresh');
-              const now = Date.now();
+            if (error) {
+              console.warn("Error checking session:", error.message);
+            } else if (data.session) {
+              console.log("Session found directly in Supabase but not in context");
+              // Session exists, just missing from context - refresh page to sync
+              console.log("Refreshing page to restore session context");
               
-              if (lastRefresh && now - parseInt(lastRefresh) < 5000) {
-                console.warn("Detected potential refresh loop, redirecting to login instead");
-                localStorage.removeItem('sb-last-refresh');
-                navigate('/login', { replace: true });
-                return false;
-              }
-              
-              localStorage.setItem('sb-last-refresh', now.toString());
-              window.location.reload();
-              return true;
-            } catch (e) {
-              console.error("Error handling refresh:", e);
-            }
-            return true;
-          }
-        } catch (e) {
-          console.error("Exception during direct session check:", e);
-        }
-        
-        // Second, try retrieving and using backup tokens
-        try {
-          console.log("Checking for backup tokens in localStorage");
-          const accessToken = localStorage.getItem('sb-access-token');
-          const refreshToken = localStorage.getItem('sb-refresh-token');
-          
-          if (accessToken && refreshToken) {
-            console.log("Found tokens in localStorage, attempting recovery");
-            
-            try {
-              // Try to set session with the stored tokens
-              const { data, error } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken
-              });
-              
-              if (error) {
-                console.warn("Failed to restore session with tokens:", error.message);
-              } else if (data.session) {
-                console.log("Successfully restored session from tokens");
-                // Refresh page to update auth context
+              // Set a flag to prevent infinite refresh loops
+              try {
+                const lastRefresh = localStorage.getItem('sb-last-refresh');
+                const now = Date.now();
+                
+                if (lastRefresh && now - parseInt(lastRefresh) < 5000) {
+                  console.warn("Detected potential refresh loop, redirecting to login instead");
+                  localStorage.removeItem('sb-last-refresh');
+                  redirectTimeout.current = setTimeout(() => {
+                    navigate('/login', { replace: true });
+                  }, 100);
+                  return false;
+                }
+                
+                localStorage.setItem('sb-last-refresh', now.toString());
                 window.location.reload();
                 return true;
+              } catch (e) {
+                console.error("Error handling refresh:", e);
               }
-            } catch (tokenError) {
-              console.error("Error using backup tokens:", tokenError);
-            }
-          }
-        } catch (e) {
-          console.error("Error accessing localStorage:", e);
-        }
-        
-        // If we get here, recovery failed
-        console.log("All recovery attempts failed, redirecting to login");
-        return false;
-      };
-      
-      // Execute recovery attempts and redirect if they fail
-      attemptSessionRecovery().then(recovered => {
-        if (!recovered) {
-          // Clear any potentially invalid tokens before redirecting
-          try {
-            const tokensToRemove = [
-              'sb-access-token', 'sb-refresh-token', 'sb-user-id', 
-              'sb-session-active', 'sb-auth-timestamp'
-            ];
-            
-            for (const key of tokensToRemove) {
-              localStorage.removeItem(key);
+              return true;
             }
           } catch (e) {
-            console.warn("Error clearing tokens:", e);
+            console.error("Exception during direct session check:", e);
           }
           
+          // Second, try retrieving and using backup tokens
+          try {
+            console.log("Checking for backup tokens in localStorage");
+            const accessToken = localStorage.getItem('sb-access-token');
+            const refreshToken = localStorage.getItem('sb-refresh-token');
+            
+            if (accessToken && refreshToken) {
+              console.log("Found tokens in localStorage, attempting recovery");
+              
+              try {
+                // Use refreshSession instead of setSession
+                const { data, error } = await supabase.auth.refreshSession({
+                  refresh_token: refreshToken
+                });
+                
+                if (error) {
+                  console.warn("Failed to restore session with tokens:", error.message);
+                } else if (data.session) {
+                  console.log("Successfully restored session from tokens");
+                  // Refresh page to update auth context
+                  window.location.reload();
+                  return true;
+                }
+              } catch (tokenError) {
+                console.error("Error using backup tokens:", tokenError);
+              }
+            }
+          } catch (e) {
+            console.error("Error accessing localStorage:", e);
+          }
+          
+          // If we get here, recovery failed
+          console.log("All recovery attempts failed, redirecting to login");
+          return false;
+        };
+        
+        // Execute recovery attempts and redirect if they fail
+        attemptSessionRecovery().then(recovered => {
+          if (!recovered) {
+            // Clear any potentially invalid tokens before redirecting
+            try {
+              const tokensToRemove = [
+                'sb-access-token', 'sb-refresh-token', 'sb-user-id', 
+                'sb-session-active', 'sb-auth-timestamp'
+              ];
+              
+              for (const key of tokensToRemove) {
+                localStorage.removeItem(key);
+              }
+            } catch (e) {
+              console.warn("Error clearing tokens:", e);
+            }
+            
+            redirectTimeout.current = setTimeout(() => {
+              navigate('/login', { replace: true });
+            }, 100);
+          }
+        });
+      } else {
+        // We've already tried recovery, just redirect to login
+        console.log("Recovery already attempted, redirecting to login");
+        redirectTimeout.current = setTimeout(() => {
           navigate('/login', { replace: true });
-        }
-      });
-      
-      return;
-    }
-    
-    // If user is authenticated, make sure they're accessing their personal routes correctly
-    if (isAuthenticated && currentUser?.username) {
-      // Routes that should be prefixed with username
-      const userRoutes = ['/dashboard', '/settings', '/listings', '/email-marketing', 
-                          '/social-content', '/listing-graphics', '/lot-maps', '/theme'];
-      
-      // Check if we need to add username prefix to route
-      for (const route of userRoutes) {
-        if (location === route) {
-          const correctPath = `/${currentUser.username}${route}`;
-          console.log(`Redirecting to user-specific path: ${correctPath}`);
-          navigate(correctPath, { replace: true });
-          return;
-        }
+        }, 100);
       }
     }
   }, [isAuthenticated, authLoading, location, user, currentUser, navigate]);
   
-  // Run redirect check when auth state or location changes
+  // Call the redirect check whenever auth state changes
   useEffect(() => {
     redirectBasedOnAuth();
+    
+    // Cleanup timeouts on unmount
+    return () => {
+      if (redirectTimeout.current) {
+        clearTimeout(redirectTimeout.current);
+      }
+    };
   }, [redirectBasedOnAuth]);
 
   return (
     <Switch>
-      {/* Authentication Routes */}
+      {/* Landing Page */}
+      <Route path="/">
+        {() => <LandingPage />}
+      </Route>
+      
+      {/* Authentication Routes - these should always be accessible */}
       <Route path="/login">
-        {() => isAuthenticated ? <Dashboard /> : <Login />}
+        {() => <Login />}
       </Route>
       
       <Route path="/register">
-        {() => isAuthenticated ? <Dashboard /> : <Register />}
+        {() => <Register />}
       </Route>
       
       <Route path="/verify-email">
@@ -306,33 +324,121 @@ function MainAppRoutes() {
       
       {/* Main Dashboard - use same component for both routes */}
       <Route path="/:username/dashboard">
-        {(params) => isAuthenticated ? <Dashboard /> : <Login />}
+        {(params) => {
+          if (!isAuthenticated) {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-8">
+                <p className="text-lg mb-2">Authentication required</p>
+                <p className="text-sm text-muted-foreground mb-4">Please log in to view your dashboard</p>
+                <Button onClick={() => navigate('/login')}>Go to Login</Button>
+              </div>
+            );
+          }
+          return <Dashboard />;
+        }}
       </Route>
       <Route path="/dashboard">
-        {() => isAuthenticated ? <Dashboard /> : <Login />}
+        {() => {
+          if (!isAuthenticated) {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-8">
+                <p className="text-lg mb-2">Authentication required</p>
+                <p className="text-sm text-muted-foreground mb-4">Please log in to view your dashboard</p>
+                <Button onClick={() => navigate('/login')}>Go to Login</Button>
+              </div>
+            );
+          }
+          return <Dashboard />;
+        }}
       </Route>
       
       {/* Settings Routes - use same component for both routes */}
       <Route path="/:username/settings">
-        {() => isAuthenticated ? <Settings /> : <Login />}
+        {() => {
+          if (!isAuthenticated) {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-8">
+                <p className="text-lg mb-2">Authentication required</p>
+                <p className="text-sm text-muted-foreground mb-4">Please log in to view settings</p>
+                <Button onClick={() => navigate('/login')}>Go to Login</Button>
+              </div>
+            );
+          }
+          return <Settings />;
+        }}
       </Route>
       <Route path="/settings">
-        {() => isAuthenticated ? <Settings /> : <Login />}
+        {() => {
+          if (!isAuthenticated) {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-8">
+                <p className="text-lg mb-2">Authentication required</p>
+                <p className="text-sm text-muted-foreground mb-4">Please log in to view settings</p>
+                <Button onClick={() => navigate('/login')}>Go to Login</Button>
+              </div>
+            );
+          }
+          return <Settings />;
+        }}
       </Route>
       
       {/* Listings Routes - use same component for different paths */}
       <Route path="/:username/listings/new">
-        {() => isAuthenticated ? <ListingCreate /> : <Login />}
+        {() => {
+          if (!isAuthenticated) {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-8">
+                <p className="text-lg mb-2">Authentication required</p>
+                <p className="text-sm text-muted-foreground mb-4">Please log in to create listings</p>
+                <Button onClick={() => navigate('/login')}>Go to Login</Button>
+              </div>
+            );
+          }
+          return <ListingCreate />;
+        }}
       </Route>
       <Route path="/listings/new">
-        {() => isAuthenticated ? <ListingCreate /> : <Login />}
+        {() => {
+          if (!isAuthenticated) {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-8">
+                <p className="text-lg mb-2">Authentication required</p>
+                <p className="text-sm text-muted-foreground mb-4">Please log in to create listings</p>
+                <Button onClick={() => navigate('/login')}>Go to Login</Button>
+              </div>
+            );
+          }
+          return <ListingCreate />;
+        }}
       </Route>
       
       <Route path="/:username/listings/:id/edit">
-        {(params) => isAuthenticated ? <ListingEdit id={Number(params.id)} /> : <Login />}
+        {(params) => {
+          if (!isAuthenticated) {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-8">
+                <p className="text-lg mb-2">Authentication required</p>
+                <p className="text-sm text-muted-foreground mb-4">Please log in to edit listings</p>
+                <Button onClick={() => navigate('/login')}>Go to Login</Button>
+              </div>
+            );
+          }
+          return <ListingEdit id={Number(params.id)} />;
+        }}
       </Route>
       <Route path="/listings/:id/edit">
-        {(params) => isAuthenticated ? <ListingEdit id={Number(params.id)} /> : <Login />}
+        {(params) => {
+          if (!isAuthenticated) {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-8">
+                <p className="text-lg mb-2">Authentication required</p>
+                <p className="text-sm text-muted-foreground mb-4">Please log in to edit listings</p>
+                <Button onClick={() => navigate('/login')}>Go to Login</Button>
+              </div>
+            );
+          }
+          return <ListingEdit id={Number(params.id)} />;
+        }}
       </Route>
       
       <Route path="/:username/listings">
@@ -404,11 +510,6 @@ function MainAppRoutes() {
         }
       </Route>
       
-      {/* Landing Page */}
-      <Route path="/">
-        {() => <LandingPage />}
-      </Route>
-      
       {/* Custom profile route that matches /:username but doesn't interfere with other routes */}
       <Route path="/:username">
         {(params) => {
@@ -428,7 +529,18 @@ function MainAppRoutes() {
       
       {/* Profile Setup Route */}
       <Route path="/profile-setup">
-        {() => isAuthenticated ? <ProfileSetup /> : <Login />}
+        {() => {
+          if (!isAuthenticated) {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-8">
+                <p className="text-lg mb-2">Authentication required</p>
+                <p className="text-sm text-muted-foreground mb-4">Please log in to set up your profile</p>
+                <Button onClick={() => navigate('/login')}>Go to Login</Button>
+              </div>
+            );
+          }
+          return <ProfileSetup />;
+        }}
       </Route>
       
       {/* Fallback for undefined routes */}

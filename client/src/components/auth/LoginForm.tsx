@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useSupabaseAuth } from "@/context/SupabaseAuthContext";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase";
 
 // Define the user data interface
 interface UserData {
@@ -44,9 +44,9 @@ const formSchema = z.object({
 
 export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [, setLocation] = useLocation();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
-  const { signIn, user, setSession, setUser } = useSupabaseAuth();
+  const { signIn, setSession, setUser } = useSupabaseAuth();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -74,8 +74,11 @@ export default function LoginForm() {
         try {
           console.log('Looking up email for username:', values.username);
           
+          // Get properly initialized client
+          const supabaseClient = await getSupabaseClient();
+          
           // Query Supabase directly instead of going through the API
-          const { data: profiles, error: profileError } = await supabase
+          const { data: profiles, error: profileError } = await supabaseClient
             .from('profiles')
             .select('email')
             .eq('username', values.username)
@@ -109,7 +112,7 @@ export default function LoginForm() {
       console.log('Attempting login with email:', email.substring(0, 3) + '***@***');
       
       try {
-        // Sign in through Supabase directly
+        // Sign in through context function
         const signInResult = await signIn(email, values.password);
         
         // Check for error in response
@@ -124,71 +127,20 @@ export default function LoginForm() {
         const { session, user } = signInResult.data;
         console.log('Sign in successful, session established for user:', user.id.substring(0, 8) + '...');
         
-        // If we got here, authentication was successful
-        setSession(session);
-        setUser(user);
-        
-        // Double-check that session was actually set
-        setTimeout(async () => {
-          try {
-            const checkResult = await supabase.auth.getSession();
-            console.log('Session check after login:', { 
-              hasSession: !!checkResult?.data?.session,
-              inContext: !!session
-            });
-            
-            // Explicitly extract and store token in localStorage for API requests
-            if (checkResult?.data?.session?.access_token) {
-              try {
-                localStorage.setItem('sb-access-token', checkResult.data.session.access_token);
-                
-                // Set a cookie as well for additional redundancy
-                const oneWeek = 60 * 60 * 24 * 7;
-                document.cookie = `sb-access-token=${checkResult.data.session.access_token};max-age=${oneWeek};path=/;SameSite=Lax`;
-                
-                console.log('Explicitly stored access token in localStorage and cookie');
-              } catch (e) {
-                console.warn('Error storing token explicitly:', e);
-              }
-            }
-          } catch (e) {
-            console.warn('Error in post-login session check:', e);
-          }
-        }, 100);
-        
-        // Save the session explicitly to localStorage as a backup
-        try {
-          localStorage.setItem('sb-user-id', user.id);
-          localStorage.setItem('sb-session-active', 'true');
-          localStorage.setItem('sb-provider', 'email');
-          // Store a timestamp to detect stale sessions
-          localStorage.setItem('sb-auth-timestamp', Date.now().toString());
-          
-          // Also store in sessionStorage for redundancy
-          sessionStorage.setItem('sb-user-id', user.id);
-          sessionStorage.setItem('sb-session-active', 'true');
-        } catch (storageError) {
-          console.warn('Could not save to localStorage:', storageError);
-        }
-        
         // Show success message
         toast({
           title: "Login successful",
           description: "Redirecting to dashboard..."
         });
         
-        // Add a longer delay to ensure the session is properly established
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Add a short delay to ensure the toast is visible
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Don't redirect; reload the page to ensure a fresh state
-        console.log('Reloading page to ensure fresh session state...');
-        
-        // Construct the redirection URL with the username
+        // Get the username for redirection
         const username = user.user_metadata?.username || user.email?.split('@')[0] || 'dashboard';
-        const redirectUrl = `/${username}/dashboard`;
         
-        // Use window.location for a full page refresh with the proper URL
-        window.location.href = redirectUrl;
+        // Use navigate instead of location.href for a cleaner transition
+        navigate(`/${username}/dashboard`, { replace: true });
       } catch (signInError: any) {
         console.error('Login error during sign in:', signInError);
         toast({
@@ -255,11 +207,11 @@ export default function LoginForm() {
           </form>
         </Form>
       </CardContent>
-      <CardFooter className="flex justify-center">
-        <p className="text-sm text-muted-foreground">
+      <CardFooter className="flex justify-center border-t p-4">
+        <p className="text-sm text-gray-600">
           Don't have an account?{" "}
-          <Link href="/register" className="text-primary underline-offset-4 hover:underline">
-            Register
+          <Link href="/register" className="font-medium text-primary-600 hover:text-primary-500">
+            Sign up
           </Link>
         </p>
       </CardFooter>

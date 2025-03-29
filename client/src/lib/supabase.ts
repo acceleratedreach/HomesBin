@@ -3,6 +3,75 @@ import { createClient } from '@supabase/supabase-js';
 // Initialize with a placeholder to avoid TypeScript errors
 let supabase: ReturnType<typeof createClient>;
 
+// Create a consistent Supabase client factory function
+const createSupabaseClient = (url: string, key: string) => {
+  return createClient(
+    url,
+    key,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storageKey: 'supabase.auth.token',
+        flowType: 'pkce',
+        storage: {
+          getItem: (key: string) => {
+            try {
+              // Try localStorage first
+              let value = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+              if (!value && typeof window !== 'undefined') {
+                // If not in localStorage, try sessionStorage as backup
+                value = window.sessionStorage.getItem(key);
+              }
+              console.log(`Storage get [${key.substring(0, 10)}...]: ${value ? 'exists' : 'null'}`);
+              return value;
+            } catch (e) {
+              console.warn(`Error getting item from storage: ${key}`, e);
+              return null;
+            }
+          },
+          setItem: (key: string, value: string) => {
+            try {
+              console.log(`Storage set [${key.substring(0, 10)}...]: ${value ? 'value exists' : 'null'}`);
+              // Store in both localStorage and sessionStorage for redundancy
+              if (typeof window !== 'undefined') {
+                window.localStorage.setItem(key, value);
+                window.sessionStorage.setItem(key, value);
+              }
+            } catch (e) {
+              console.warn(`Error setting item in storage: ${key}`, e);
+              try {
+                if (typeof window !== 'undefined') {
+                  window.sessionStorage.setItem(key, value);
+                }
+              } catch (se) {
+                console.warn(`Error setting item in sessionStorage: ${key}`, se);
+              }
+            }
+          },
+          removeItem: (key: string) => {
+            try {
+              console.log(`Storage remove [${key.substring(0, 10)}...]`);
+              if (typeof window !== 'undefined') {
+                window.localStorage.removeItem(key);
+                window.sessionStorage.removeItem(key);
+              }
+            } catch (e) {
+              console.warn(`Error removing item from storage: ${key}`, e);
+            }
+          },
+        },
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'supabase-js-web'
+        }
+      }
+    }
+  );
+};
+
 // Create a mock client for development that won't throw errors
 const createMockClient = () => {
   return {
@@ -75,65 +144,7 @@ async function initializeSupabase() {
           }
           
           // Create the client with server-provided credentials
-          supabase = createClient(
-            supabaseUrl,
-            supabaseKey,
-            {
-              auth: {
-                persistSession: true,
-                autoRefreshToken: true,
-                detectSessionInUrl: true,
-                storageKey: 'supabase.auth.token',
-                flowType: 'pkce',
-                storage: {
-                  getItem: (key: string) => {
-                    try {
-                      // Try localStorage first
-                      let value = window.localStorage.getItem(key);
-                      if (!value) {
-                        // If not in localStorage, try sessionStorage as backup
-                        value = window.sessionStorage.getItem(key);
-                      }
-                      console.log(`Storage get [${key.substring(0, 10)}...]: ${value ? 'exists' : 'null'}`);
-                      return value;
-                    } catch (e) {
-                      console.warn(`Error getting item from storage: ${key}`, e);
-                      return null;
-                    }
-                  },
-                  setItem: (key: string, value: string) => {
-                    try {
-                      console.log(`Storage set [${key.substring(0, 10)}...]: ${value ? 'value exists' : 'null'}`);
-                      // Store in both localStorage and sessionStorage for redundancy
-                      window.localStorage.setItem(key, value);
-                      window.sessionStorage.setItem(key, value);
-                    } catch (e) {
-                      console.warn(`Error setting item in storage: ${key}`, e);
-                      try {
-                        window.sessionStorage.setItem(key, value);
-                      } catch (se) {
-                        console.warn(`Error setting item in sessionStorage: ${key}`, se);
-                      }
-                    }
-                  },
-                  removeItem: (key: string) => {
-                    try {
-                      console.log(`Storage remove [${key.substring(0, 10)}...]`);
-                      window.localStorage.removeItem(key);
-                      window.sessionStorage.removeItem(key);
-                    } catch (e) {
-                      console.warn(`Error removing item from storage: ${key}`, e);
-                    }
-                  },
-                },
-              },
-              global: {
-                headers: {
-                  'X-Client-Info': 'supabase-js-web'
-                }
-              }
-            }
-          );
+          supabase = createSupabaseClient(supabaseUrl, supabaseKey);
           
           // Log successful initialization
           console.log('Supabase client initialized successfully with API config');
@@ -280,62 +291,7 @@ async function initializeSupabase() {
       }
       
       // Create client with our comprehensive auth options
-      supabase = createClient(
-        envSupabaseUrl,
-        envSupabaseKey,
-        {
-          auth: {
-            persistSession: true,
-            autoRefreshToken: true,
-            detectSessionInUrl: true,
-            storageKey: 'supabase.auth.token',
-            flowType: 'pkce',
-            storage: {
-              getItem: (key: string) => {
-                try {
-                  // Try localStorage first
-                  let value = window.localStorage.getItem(key);
-                  if (!value) {
-                    // If not in localStorage, try sessionStorage as backup
-                    value = window.sessionStorage.getItem(key);
-                  }
-                  return value;
-                } catch (e) {
-                  console.warn(`Error getting item from storage: ${key}`, e);
-                  return null;
-                }
-              },
-              setItem: (key: string, value: string) => {
-                try {
-                  // Store in both localStorage and sessionStorage for redundancy
-                  window.localStorage.setItem(key, value);
-                  window.sessionStorage.setItem(key, value);
-                } catch (e) {
-                  console.warn(`Error setting item in storage: ${key}`, e);
-                  try {
-                    window.sessionStorage.setItem(key, value);
-                  } catch (se) {
-                    console.warn(`Error setting item in sessionStorage: ${key}`, se);
-                  }
-                }
-              },
-              removeItem: (key: string) => {
-                try {
-                  window.localStorage.removeItem(key);
-                  window.sessionStorage.removeItem(key);
-                } catch (e) {
-                  console.warn(`Error removing item from storage: ${key}`, e);
-                }
-              },
-            }
-          },
-          global: {
-            headers: {
-              'X-Client-Info': 'supabase-js-web'
-            }
-          }
-        }
-      );
+      supabase = createSupabaseClient(envSupabaseUrl, envSupabaseKey);
       
       // Try to immediately check if the client works
       try {
@@ -357,13 +313,168 @@ async function initializeSupabase() {
     supabase = createMockClient();
     
   } catch (error) {
-    console.error('Error initializing Supabase client:', error);
+    console.error('Fatal error in Supabase initialization:', error);
+    // Make sure we always have a working client
     supabase = createMockClient();
   }
 }
 
-// Initialize immediately
-initializeSupabase();
+// Ensure we only initialize once
+let initializationPromise: Promise<void> | null = null;
+
+// Export a function to get the properly initialized client
+export const getSupabaseClient = async () => {
+  if (!initializationPromise) {
+    initializationPromise = initializeSupabase();
+  }
+  
+  await initializationPromise;
+  return supabase;
+};
+
+// Start initialization immediately
+initializeSupabase().catch(e => console.error('Background initialization error:', e));
+
+// Export the supabase client directly for backward compatibility
+export { supabase };
+
+/**
+ * Fetch data from a Supabase table with optional filters
+ * @param table Table name to query
+ * @param options Query options including filters, pagination, etc.
+ * @returns Query result
+ */
+export const fetchFromSupabase = async (
+  table: string, 
+  options: { 
+    filters?: Record<string, any>,
+    page?: number,
+    pageSize?: number,
+    orderBy?: string,
+    orderDirection?: 'asc' | 'desc'
+  } = {}
+) => {
+  const {
+    filters = {},
+    page = 1,
+    pageSize = 20,
+    orderBy = 'created_at',
+    orderDirection = 'desc'
+  } = options;
+  
+  let query = supabase
+    .from(table)
+    .select('*');
+  
+  // Apply filters
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      query = query.eq(key, value);
+    }
+  });
+  
+  // Apply pagination
+  const start = (page - 1) * pageSize;
+  const end = start + pageSize - 1;
+  query = query.range(start, end);
+  
+  // Apply ordering
+  query = query.order(orderBy, { ascending: orderDirection === 'asc' });
+  
+  const { data, error } = await query;
+  
+  if (error) {
+    console.error(`Error fetching from ${table}:`, error);
+    throw error;
+  }
+  
+  return data;
+};
+
+/**
+ * Insert a record into a Supabase table
+ * @param table Table name
+ * @param data Record data
+ * @returns Inserted record
+ */
+export const insertToSupabase = async (table: string, data: any) => {
+  const { data: result, error } = await supabase
+    .from(table)
+    .insert(data)
+    .select('*')
+    .single();
+  
+  if (error) {
+    console.error(`Error inserting into ${table}:`, error);
+    throw error;
+  }
+  
+  return result;
+};
+
+/**
+ * Update a record in a Supabase table
+ * @param table Table name
+ * @param id Record ID
+ * @param data Updated data
+ * @returns Updated record
+ */
+export const updateInSupabase = async (table: string, id: number | string, data: any) => {
+  const { data: result, error } = await supabase
+    .from(table)
+    .update(data)
+    .eq('id', id)
+    .select('*')
+    .single();
+  
+  if (error) {
+    console.error(`Error updating in ${table}:`, error);
+    throw error;
+  }
+  
+  return result;
+};
+
+/**
+ * Delete a record from a Supabase table
+ * @param table Table name
+ * @param id Record ID
+ * @returns Success status
+ */
+export const deleteFromSupabase = async (table: string, id: number | string) => {
+  const { error } = await supabase
+    .from(table)
+    .delete()
+    .eq('id', id);
+  
+  if (error) {
+    console.error(`Error deleting from ${table}:`, error);
+    throw error;
+  }
+  
+  return true;
+};
+
+/**
+ * Fetch a single record by ID
+ * @param table Table name
+ * @param id Record ID
+ * @returns Record data
+ */
+export const fetchOneFromSupabase = async (table: string, id: number | string) => {
+  const { data, error } = await supabase
+    .from(table)
+    .select('*')
+    .eq('id', id)
+    .single();
+  
+  if (error) {
+    console.error(`Error fetching from ${table}:`, error);
+    throw error;
+  }
+  
+  return data;
+};
 
 // Add debug helpers to the window object
 if (typeof window !== 'undefined') {
@@ -628,143 +739,3 @@ if (typeof window !== 'undefined') {
   console.log('• window.checkSupabaseEnv() - Verify environment setup');
   console.log('• window.cleanSupabaseAuth() - Clean up auth tokens');
 }
-
-export { supabase };
-
-/**
- * Fetch data from a Supabase table with optional filters
- * @param table Table name to query
- * @param options Query options including filters, pagination, etc.
- * @returns Query result
- */
-export const fetchFromSupabase = async (
-  table: string, 
-  options: { 
-    filters?: Record<string, any>,
-    page?: number,
-    pageSize?: number,
-    orderBy?: string,
-    orderDirection?: 'asc' | 'desc'
-  } = {}
-) => {
-  const {
-    filters = {},
-    page = 1,
-    pageSize = 20,
-    orderBy = 'created_at',
-    orderDirection = 'desc'
-  } = options;
-  
-  let query = supabase
-    .from(table)
-    .select('*');
-  
-  // Apply filters
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value !== undefined && value !== null) {
-      query = query.eq(key, value);
-    }
-  });
-  
-  // Apply pagination
-  const start = (page - 1) * pageSize;
-  const end = start + pageSize - 1;
-  query = query.range(start, end);
-  
-  // Apply ordering
-  query = query.order(orderBy, { ascending: orderDirection === 'asc' });
-  
-  const { data, error } = await query;
-  
-  if (error) {
-    console.error(`Error fetching from ${table}:`, error);
-    throw error;
-  }
-  
-  return data;
-};
-
-/**
- * Insert a record into a Supabase table
- * @param table Table name
- * @param data Record data
- * @returns Inserted record
- */
-export const insertToSupabase = async (table: string, data: any) => {
-  const { data: result, error } = await supabase
-    .from(table)
-    .insert(data)
-    .select('*')
-    .single();
-  
-  if (error) {
-    console.error(`Error inserting into ${table}:`, error);
-    throw error;
-  }
-  
-  return result;
-};
-
-/**
- * Update a record in a Supabase table
- * @param table Table name
- * @param id Record ID
- * @param data Updated data
- * @returns Updated record
- */
-export const updateInSupabase = async (table: string, id: number | string, data: any) => {
-  const { data: result, error } = await supabase
-    .from(table)
-    .update(data)
-    .eq('id', id)
-    .select('*')
-    .single();
-  
-  if (error) {
-    console.error(`Error updating in ${table}:`, error);
-    throw error;
-  }
-  
-  return result;
-};
-
-/**
- * Delete a record from a Supabase table
- * @param table Table name
- * @param id Record ID
- * @returns Success status
- */
-export const deleteFromSupabase = async (table: string, id: number | string) => {
-  const { error } = await supabase
-    .from(table)
-    .delete()
-    .eq('id', id);
-  
-  if (error) {
-    console.error(`Error deleting from ${table}:`, error);
-    throw error;
-  }
-  
-  return true;
-};
-
-/**
- * Fetch a single record by ID
- * @param table Table name
- * @param id Record ID
- * @returns Record data
- */
-export const fetchOneFromSupabase = async (table: string, id: number | string) => {
-  const { data, error } = await supabase
-    .from(table)
-    .select('*')
-    .eq('id', id)
-    .single();
-  
-  if (error) {
-    console.error(`Error fetching from ${table}:`, error);
-    throw error;
-  }
-  
-  return data;
-};

@@ -96,20 +96,33 @@ async function safeGetSession(req?: Request) {
         
         // Method 2: Try to set session first, then get user (sometimes more reliable)
         if (userError || !userData?.user) {
-          console.log('🔍 Auth debug - First token attempt failed, trying setSession approach');
+          console.log('🔍 Auth debug - First token attempt failed, trying refreshSession approach');
           
           try {
-            await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: '' // We don't have refresh token in most cases
-            });
+            // Try to use refresh token if available, otherwise just use the access token
+            const refreshToken = req?.headers['x-refresh-token'] as string || '';
             
-            // Now try to get the user after setting the session
-            const sessionUserResponse = await supabase.auth.getUser();
-            userData = sessionUserResponse.data;
-            userError = sessionUserResponse.error;
+            if (refreshToken) {
+              // If we have a refresh token, use it to create a new session
+              const refreshResult = await supabase.auth.refreshSession({
+                refresh_token: refreshToken
+              });
+              
+              if (!refreshResult.error && refreshResult.data?.session) {
+                console.log('🔍 Auth debug - Successfully refreshed session with refresh token');
+                userData = { user: refreshResult.data.session.user };
+                userError = null;
+              }
+            } else {
+              // Without a refresh token, we have to try with just the access token
+              console.log('🔍 Auth debug - No refresh token available, using access token only');
+              // Use getUser with the token directly instead of trying to set the session
+              const sessionUserResponse = await supabase.auth.getUser(accessToken);
+              userData = sessionUserResponse.data;
+              userError = sessionUserResponse.error;
+            }
           } catch (sessionSetError) {
-            console.warn('Error setting session with token:', sessionSetError);
+            console.warn('Error refreshing session with token:', sessionSetError);
           }
         }
         
